@@ -1,0 +1,221 @@
+<?php
+
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\AuthController;
+use App\Http\Controllers\BookController;
+use App\Http\Controllers\TransactionController;
+use App\Http\Controllers\ReportController;
+use App\Http\Controllers\UserController;
+use App\Http\Controllers\AttendanceController;
+use App\Http\Controllers\SettingController;
+use App\Models\User;
+
+/*
+|--------------------------------------------------------------------------
+| Public Routes
+|--------------------------------------------------------------------------
+*/
+Route::post('/login', [AuthController::class, 'login']);
+Route::post('/forgot-password/send-otp', [App\Http\Controllers\ForgotPasswordController::class, 'sendOtp']);
+Route::post('/forgot-password/verify-otp', [App\Http\Controllers\ForgotPasswordController::class, 'verifyOtp']);
+Route::post('/forgot-password/reset', [App\Http\Controllers\ForgotPasswordController::class, 'resetPassword']);
+Route::get('/books/search/{keyword}', [BookController::class, 'search']);
+Route::get('/books/lookup/{barcode}', [BookController::class, 'lookup']);
+Route::get('/books/lookup-isbn/{isbn}', [BookController::class, 'lookupIsbn']);
+
+
+
+// Public Settings (for circulation display)
+Route::get('/settings/circulation', [SettingController::class, 'circulation']);
+
+// Public (Kiosk) Routes
+Route::prefix('public')->group(function () {
+    Route::get('/books', [App\Http\Controllers\PublicBookController::class, 'index']);
+    Route::get('/books/categories', [App\Http\Controllers\PublicBookController::class, 'categories']); // New route
+    Route::get('/books/{id}', [App\Http\Controllers\PublicBookController::class, 'show']);
+    Route::post('/attendance', [App\Http\Controllers\AttendanceController::class, 'logAttendance']);
+});
+
+/*
+|--------------------------------------------------------------------------
+| Protected Routes (Must have Token)
+|--------------------------------------------------------------------------
+*/
+Route::group(['middleware' => ['auth:sanctum']], function () {
+
+    // DEBUG ROUTE (Secured behind auth:sanctum)
+
+
+    // Book & Student routes secured (contain PII)
+    Route::get('/books', [BookController::class, 'index']);
+    Route::get('/books/available', [BookController::class, 'getAvailableBooks']);
+    Route::get('/books/available/catalog', [BookController::class, 'getAvailableBooksPagedCatalog']);
+    Route::get('/books/borrowed', [BookController::class, 'getBorrowedBooks']);
+    Route::get('/books/borrowed/catalog', [BookController::class, 'getBorrowedBooksPagedCatalog']);
+    Route::get('/students/{studentId}/clearance', [BookController::class, 'checkClearance']);
+
+    // Auth
+    Route::get('/transactions', [App\Http\Controllers\TransactionController::class, 'index']);
+    Route::post('/logout', [AuthController::class, 'logout']);
+    Route::get('/user', function (Request $request) {
+        return $request->user();
+    });
+
+    // Settings Management (Admin)
+    Route::get('/settings', [SettingController::class, 'index']);
+
+    // Book Management
+    Route::post('/books/title', [BookController::class, 'storeTitle']);
+
+    Route::get('/books/next-accession', [BookController::class, 'getNextAccession']);
+    Route::get('/books/check-accession', [BookController::class, 'checkAccession']);
+    Route::get('/books/random-barcode', [BookController::class, 'generateRandomBarcode']);
+    Route::get('/books/lost', [BookController::class, 'getLostBooks']); // NEW
+    Route::post('/books/assets/{id}/restore', [BookController::class, 'restoreBook']); // NEW
+
+    // Damaged Book Management
+    Route::get('/books/damaged', [BookController::class, 'getDamagedBooks']);
+    Route::post('/books/assets/{id}/mark-damaged', [BookController::class, 'markAsDamaged']);
+    Route::post('/books/mark-damaged', [BookController::class, 'markAsDamaged']); // By asset_code in body
+    Route::post('/books/assets/{id}/repair', [BookController::class, 'repairBook']);
+
+    // Category-Based Inventory Navigation
+    Route::get('/books/categories/summary', [BookController::class, 'getCategorySummary']);
+    Route::get('/books/by-category/{category}', [BookController::class, 'getBooksByCategory'])->where('category', '.*');
+
+    // College-Based Inventory Navigation (3-level: College → Category → Books)
+    Route::get('/books/colleges/summary', [BookController::class, 'getCollegeSummary']);
+    Route::get('/books/colleges/{college}/categories', [BookController::class, 'getCategorySummaryByCollege'])->where('college', '.*');
+
+    // Year-Based Inventory Filter
+    Route::get('/books/years/summary', [BookController::class, 'getYearSummary']);
+    Route::get('/books/by-year/{year}', [BookController::class, 'getBooksByYear']);
+
+    // Circulation (The New Stuff)
+    Route::post('/borrow', [TransactionController::class, 'borrow']);
+    Route::post('/return', [TransactionController::class, 'returnBook']);
+    Route::post('/transactions/lost', [TransactionController::class, 'markAsLost']); // NEW
+    Route::get('/history', [TransactionController::class, 'history']);
+
+    // Payment Management (NEW)
+    Route::post('/transactions/{id}/pay', [TransactionController::class, 'markAsPaid']);
+
+
+    Route::get('/students/{id}/fines', [TransactionController::class, 'getStudentFines']); // NEW
+
+    // Student Management
+    Route::get('/students', [App\Http\Controllers\StudentController::class, 'index']);
+    Route::post('/students', [App\Http\Controllers\StudentController::class, 'store']);
+    Route::put('/students/{id}', [App\Http\Controllers\StudentController::class, 'update']);
+
+    Route::post('/students/batch', [App\Http\Controllers\StudentController::class, 'batchStore']);
+
+    // Server-side student search, count, and lookup (pagination-safe)
+    Route::get('/students/search', [App\Http\Controllers\StudentController::class, 'search']);
+    Route::get('/students/count', [App\Http\Controllers\StudentController::class, 'count']);
+    Route::get('/students/lookup/{studentId}', [App\Http\Controllers\StudentController::class, 'findByStudentId']);
+
+    Route::get('/students/{id}/history', [App\Http\Controllers\StudentController::class, 'history']);
+
+    // Course-Based Student Navigation
+    Route::get('/students/courses/summary', [App\Http\Controllers\StudentController::class, 'getCourseSummary']);
+    Route::get('/students/by-course/{course}', [App\Http\Controllers\StudentController::class, 'getStudentsByCourse'])->where('course', '.*');
+
+    // Student Promotion
+    Route::post('/students/bulk-promote', [App\Http\Controllers\StudentController::class, 'bulkPromote']);
+    Route::post('/students/{id}/promote', [App\Http\Controllers\StudentController::class, 'promote']);
+
+    // Gamification: Leaderboard & Achievements
+    Route::get('/students/leaderboard', [App\Http\Controllers\StudentController::class, 'leaderboard']);
+    Route::get('/students/{id}/achievements', [App\Http\Controllers\StudentController::class, 'achievements']);
+
+    // Dashboard Stats
+    Route::get('/dashboard/stats', [BookController::class, 'dashboardStats']);
+    Route::get('/dashboard/books', [BookController::class, 'getDashboardBooks']);
+    Route::get('/attendance/today', [AttendanceController::class, 'today']);
+    Route::get('/attendance', [AttendanceController::class, 'index']);
+    // Analytics
+    Route::get('/analytics/trends', [App\Http\Controllers\AnalyticsController::class, 'monthlyTrends']);
+    Route::get('/analytics/categories', [App\Http\Controllers\AnalyticsController::class, 'categoryPopularity']);
+
+    // Book CRUD (Update & Delete)
+    Route::put('/books/{id}', [BookController::class, 'update']);
+
+
+    // Notifications
+    Route::get('/notifications', [App\Http\Controllers\NotificationController::class, 'index']);
+    Route::post('/notifications/{id}/read', [App\Http\Controllers\NotificationController::class, 'markAsRead']);
+    Route::post('/notifications/read-all', [App\Http\Controllers\NotificationController::class, 'markAllRead']);
+
+
+    // Reports (NEW)
+    Route::get('/reports/most-borrowed', [ReportController::class, 'mostBorrowed']);
+    Route::get('/reports/top-students', [ReportController::class, 'topStudents']);
+    Route::get('/reports/penalties', [ReportController::class, 'penalties']);
+    Route::get('/reports/department', [ReportController::class, 'departmentStats']);
+    Route::get('/reports/statistics', [ReportController::class, 'statistics']);
+    Route::get('/reports/demographics', [ReportController::class, 'demographics']);
+    Route::get('/reports/export/{type}', [ReportController::class, 'exportCsv']);
+    Route::get('/reports/faculty-statistics', [ReportController::class, 'facultyStatistics']);
+    Route::get('/reports/financial-current', [ReportController::class, 'financialCurrent']);
+    Route::get('/reports/financial-history', [ReportController::class, 'financialHistory']);
+
+    // User Management (Admin Only)
+    Route::get('/users', [UserController::class, 'index']);
+
+    Route::put('/users/{id}', [UserController::class, 'update']);
+    Route::delete('/users/{id}', [UserController::class, 'destroy']);
+    Route::post('/users/check-unique', [UserController::class, 'checkUnique']);
+
+    // ========================================
+    // FACULTY MANAGEMENT
+    // ========================================
+    Route::get('/faculties', [App\Http\Controllers\FacultyController::class, 'index']);
+    Route::post('/faculties', [App\Http\Controllers\FacultyController::class, 'store']);
+    Route::get('/faculties/search', [App\Http\Controllers\FacultyController::class, 'search']);
+    Route::get('/faculties/departments/summary', [App\Http\Controllers\FacultyController::class, 'getDepartmentSummary']);
+    Route::get('/faculties/by-department/{department}', [App\Http\Controllers\FacultyController::class, 'getFacultiesByDepartment'])->where('department', '.*');
+    Route::get('/faculties/{id}', [App\Http\Controllers\FacultyController::class, 'show']);
+    Route::put('/faculties/{id}', [App\Http\Controllers\FacultyController::class, 'update']);
+    Route::delete('/faculties/{id}', [App\Http\Controllers\FacultyController::class, 'destroy']);
+    Route::get('/faculties/{id}/history', [App\Http\Controllers\FacultyController::class, 'history']);
+    Route::get('/faculties/{id}/fines', [App\Http\Controllers\FacultyTransactionController::class, 'getFacultyFines']);
+
+    // ========================================
+    // FACULTY CIRCULATION
+    // ========================================
+    Route::post('/faculty/borrow', [App\Http\Controllers\FacultyTransactionController::class, 'borrow']);
+    Route::post('/faculty/return', [App\Http\Controllers\FacultyTransactionController::class, 'returnBook']);
+    Route::get('/faculty/borrowed', [App\Http\Controllers\FacultyTransactionController::class, 'getBorrowedBooks']);
+    Route::get('/faculty/transactions', [App\Http\Controllers\FacultyTransactionController::class, 'index']);
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Admin-Only Routes (Role Check: admin)
+    |--------------------------------------------------------------------------
+    */
+    Route::group([
+        'middleware' => function (Request $request, \Closure $next) {
+            if ($request->user()->role !== 'admin') {
+                abort(403, 'Forbidden. Admin access only.');
+            }
+            return $next($request);
+        }
+    ], function () {
+        Route::post('/settings/reset', [SettingController::class, 'reset']);
+        Route::put('/settings', [SettingController::class, 'bulkUpdate']);
+        Route::put('/settings/{key}', [SettingController::class, 'update']);
+        Route::post('/transactions/{id}/waive', [TransactionController::class, 'waiveFine']);
+        Route::post('/transactions/{id}/unpaid', [TransactionController::class, 'markAsUnpaid']);
+        Route::post('/faculty/transactions/{id}/pay', [App\Http\Controllers\FacultyTransactionController::class, 'markAsPaid']);
+        Route::post('/faculty/transactions/{id}/waive', [App\Http\Controllers\FacultyTransactionController::class, 'waiveFine']);
+        Route::post('/transactions/force-delete-bulk', [TransactionController::class, 'forceDeleteBulk']);
+        Route::delete('/transactions/{id}/force', [TransactionController::class, 'forceDelete']);
+        Route::delete('/students/{id}', [App\Http\Controllers\StudentController::class, 'destroy']);
+        Route::delete('/books/{id}', [BookController::class, 'destroy']);
+        Route::post('/users', [UserController::class, 'store']);
+    });
+
+});

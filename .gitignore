@@ -1,0 +1,65 @@
+# =============================================================================
+# Library Management System - Root .gitignore
+# =============================================================================
+# Protects sensitive credentials and build artifacts from being committed.
+# =============================================================================
+
+# ---- Environment Files (CRITICAL: contain real passwords/keys) ----
+.env
+.env.local
+.env.*.local
+# NOTE: .env.docker.example is SAFE to commit (contains only placeholders)
+
+# ---- Dependencies (installed fresh via npm/composer) ----
+node_modules/
+vendor/
+
+# ---- Build Outputs ----
+library-frontend/dist/
+
+# ---- Logs & Debug Artifacts ----
+*.log
+library-backend/error.log
+library-backend/debug_*.php
+library-backend/debug_*.txt
+library-backend/test_*.php
+library-backend/output_debug.txt
+library-backend/migrate_status.txt
+library-backend/clean_orphans.php
+library-backend/public/debug_unique.txt
+library-backend/storage/logs/
+
+# ---- IDE & Editor ----
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ---- OS Files ----
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- Docker (volumes, overrides) ----
+docker-compose.override.yml
+docker-compose.*.yml
+!docker-compose.yml
+mysql_data/
+redis_data/
+storage_data/
+*.sql
+
+# ---- Laravel Compiled/Cache ----
+library-backend/bootstrap/cache/*.php
+library-backend/storage/*.key
+library-backend/storage/framework/views/*
+library-backend/storage/framework/cache/*
+library-backend/storage/framework/sessions/*
+library-backend/storage/logs/*
+
+# ---- Frontend Build/Cache ----
+library-frontend/node_modules/
+library-frontend/dist/
+library-frontend/.npm/
+library-frontend/.vite/

@@ -1,0 +1,62 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Dependencies (installed fresh during build)
+node_modules/
+vendor/
+.pnpm-store/
+
+# Build outputs (rebuilt during build)
+library-frontend/dist/
+
+# IDE & Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Root environment file (injected via docker-compose)
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Testing
+coverage/
+.phpunit.result.cache
+.phpunit.cache/
+
+# Cache
+.cache/
+
+# Docker files (avoid recursive context)
+docker-compose*.yml
+Dockerfile*
+.dockerignore
+
+# Documentation
+README.md
+DOCKER_README.md
+docs/
+
+# DevOps / CI
+.github/
+.styleci.yml
+.editorconfig

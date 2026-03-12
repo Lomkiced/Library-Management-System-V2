@@ -1,0 +1,772 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+use App\Models\Transaction;
+use App\Models\BookTitle;
+use App\Models\User;
+use App\Models\MonthlyFinancialRecord;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
+
+class ReportController extends Controller
+{
+    /**
+     * Get Most Borrowed Books Report
+     * 
+     * @param Request $request - Optional: start_date, end_date
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function mostBorrowed(Request $request)
+    {
+        $query = Transaction::query()
+            ->join('book_assets', 'transactions.book_asset_id', '=', 'book_assets.id')
+            ->join('book_titles', 'book_assets.book_title_id', '=', 'book_titles.id')
+            ->whereNull('book_assets.deleted_at')
+            ->whereNull('book_titles.deleted_at')
+            ->select(
+                'book_titles.id',
+                'book_titles.title',
+                'book_titles.author',
+                'book_titles.category',
+                'book_titles.publisher',
+                'book_titles.image_path',
+                DB::raw('COUNT(transactions.id) as borrow_count')
+            )
+            ->groupBy('book_titles.id', 'book_titles.title', 'book_titles.author', 'book_titles.category', 'book_titles.publisher', 'book_titles.image_path');
+
+        // Apply date filters
+        if ($request->has('start_date')) {
+            $query->where('transactions.borrowed_at', '>=', $request->start_date);
+        }
+        if ($request->has('end_date')) {
+            $query->where('transactions.borrowed_at', '<=', $request->end_date);
+        }
+
+        $results = $query->orderByDesc('borrow_count')->limit(10)->get();
+
+        return response()->json($results);
+    }
+
+    /**
+     * Get Top Students (Borrowers) Report
+     * 
+     * @param Request $request - Optional: start_date, end_date
+     * @return \Illuminate\Http\JsonResponse
+     */
+    /**
+     * Get Top Students (Borrowers) Report
+     * 
+     * @param Request $request - Optional: start_date, end_date
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function topStudents(Request $request) 
+    {
+        $startDate = $request->has('start_date') ? Carbon::parse($request->start_date)->startOfDay() : null;
+        $endDate = $request->has('end_date') ? Carbon::parse($request->end_date)->endOfDay() : null;
+        $search = $request->input('search');
+
+        // Base Query: Get all students with their borrow counts
+        $query = Transaction::query()
+            ->join('users', 'transactions.user_id', '=', 'users.id')
+            ->whereNull('users.deleted_at')
+            ->where('users.role', 'student')
+            ->select(
+                'users.id',
+                'users.name',
+                'users.student_id',
+                'users.course',
+                'users.year_level',
+                'users.section',
+                'users.profile_picture',
+                DB::raw('COUNT(transactions.id) as borrow_count'),
+                DB::raw('SUM(CASE WHEN transactions.returned_at IS NULL THEN 1 ELSE 0 END) as active_loans')
+            )
+            ->groupBy('users.id', 'users.name', 'users.student_id', 'users.course', 'users.year_level', 'users.section', 'users.profile_picture');
+
+        if ($startDate) {
+            $query->where('transactions.borrowed_at', '>=', $startDate);
+        }
+        if ($endDate) {
+            $query->where('transactions.borrowed_at', '<=', $endDate);
+        }
+
+        // Fetch results with a safety ceiling of 500 rows to prevent memory exhaustion
+        $allResults = $query->orderByDesc('borrow_count')->limit(500)->get();
+
+        // Assign Ranks and Transform to Collection
+        $rankedStudents = $allResults->map(function ($student, $index) {
+            $student->rank = $index + 1;
+            return $student;
+        });
+
+        // Apply Search Filter if present
+        if ($search) {
+            $filtered = $rankedStudents->filter(function ($student) use ($search) {
+                return stripos($student->name, $search) !== false || stripos($student->student_id, $search) !== false;
+            });
+            
+            // Manual Pagination for Search Results
+            $perPage = $request->input('per_page', 10);
+            $page = $request->input('page', 1);
+            $total = $filtered->count();
+            
+            $results = new \Illuminate\Pagination\LengthAwarePaginator(
+                $filtered->forPage($page, $perPage)->values(),
+                $total,
+                $perPage,
+                $page,
+                ['path' => $request->url(), 'query' => $request->query()]
+            );
+            
+            return response()->json($results);
+        }
+
+        // Default: Top 3 only
+        // Return structured data compatible with frontend expectations
+        return response()->json([
+            'data' => $rankedStudents->take(3)->values(),
+            'current_page' => 1,
+            'last_page' => 1,
+            'total' => 3,
+            'per_page' => 3
+        ]);
+    }
+
+    /**
+     * Get Demographic Analytics
+     * 
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function demographics(Request $request)
+    {
+        // 1. Borrowers by Course
+        $byCourse = Transaction::query()
+            ->join('users', 'transactions.user_id', '=', 'users.id')
+            ->select('users.course', DB::raw('count(*) as total'))
+            ->whereNotNull('users.course')
+            ->where('users.role', 'student') // Ensure only students
+            ->groupBy('users.course')
+            ->orderByDesc('total')
+            ->get();
+
+        // 2. Borrowers by Year Level
+        $byYear = Transaction::query()
+            ->join('users', 'transactions.user_id', '=', 'users.id')
+            ->select('users.year_level', DB::raw('count(*) as total'))
+            ->whereNotNull('users.year_level')
+            ->where('users.role', 'student')
+            ->groupBy('users.year_level')
+            ->orderBy('users.year_level')
+            ->get();
+
+        return response()->json([
+            'by_course' => $byCourse,
+            'by_year' => $byYear
+        ]);
+    }
+
+    /**
+     * Get Monthly Penalty Collection Report
+     * 
+     * @param Request $request - Optional: start_date, end_date
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function penalties(Request $request)
+    {
+        $query = Transaction::query()
+            ->select(
+                DB::raw('DATE_FORMAT(returned_at, "%Y-%m") as month'),
+                DB::raw('SUM(penalty_amount) as total_penalties'),
+                DB::raw('SUM(CASE WHEN payment_status = "paid" THEN penalty_amount ELSE 0 END) as collected'),
+                DB::raw('SUM(CASE WHEN payment_status = "pending" THEN penalty_amount ELSE 0 END) as pending'),
+                DB::raw('COUNT(CASE WHEN penalty_amount > 0 THEN 1 END) as late_returns')
+            )
+            ->whereNotNull('returned_at')
+            ->groupBy(DB::raw('DATE_FORMAT(returned_at, "%Y-%m")'));
+
+        // Apply date filters
+        if ($request->has('start_date')) {
+            $query->where('returned_at', '>=', $request->start_date);
+        }
+        if ($request->has('end_date')) {
+            $query->where('returned_at', '<=', $request->end_date);
+        }
+
+        $results = $query->orderByDesc('month')->limit(120)->get();
+
+        // Calculate summary
+        $summary = [
+            'total_fines' => $results->sum('total_penalties'),
+            'total_collected' => $results->sum('collected'),
+            'total_pending' => $results->sum('pending'),
+            'total_late_returns' => $results->sum('late_returns')
+        ];
+
+        return response()->json([
+            'monthly' => $results,
+            'summary' => $summary
+        ]);
+    }
+
+    /**
+     * Export Report as CSV
+     * 
+     * @param Request $request
+     * @param string $type - 'books', 'students', 'penalties'
+     * @return \Symfony\Component\HttpFoundation\StreamedResponse
+     */
+    public function exportCsv(Request $request, $type)
+    {
+        $filename = "report_{$type}_" . date('Y-m-d') . ".csv";
+
+        $headers = [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"$filename\"",
+        ];
+
+        $callback = function () use ($request, $type) {
+            $file = fopen('php://output', 'w');
+
+            switch ($type) {
+                case 'books':
+                    fputcsv($file, ['Rank', 'Title', 'Author', 'Category', 'Times Borrowed']);
+                    $data = $this->getMostBorrowedData($request);
+                    foreach ($data as $index => $row) {
+                        fputcsv($file, [
+                            $index + 1,
+                            $row->title,
+                            $row->author,
+                            $row->category,
+                            $row->borrow_count
+                        ]);
+                    }
+                    break;
+
+                case 'students':
+                    fputcsv($file, ['Rank', 'Student Name', 'Student ID', 'Course', 'Year', 'Section', 'Books Borrowed', 'Active Loans']);
+                    $data = $this->getTopStudentsData($request);
+                    foreach ($data as $index => $row) {
+                        fputcsv($file, [
+                            $index + 1,
+                            $row->name,
+                            $row->student_id,
+                            $row->course,
+                            $row->year_level,
+                            $row->section,
+                            $row->borrow_count,
+                            $row->active_loans
+                        ]);
+                    }
+                    break;
+
+                case 'penalties':
+                    fputcsv($file, ['Month', 'Total Fines', 'Collected', 'Pending', 'Late Returns']);
+                    $data = $this->getPenaltiesData($request);
+                    foreach ($data as $row) {
+                        fputcsv($file, [
+                            $row->month,
+                            '₱' . number_format($row->total_penalties, 2),
+                            '₱' . number_format($row->collected, 2),
+                            '₱' . number_format($row->pending, 2),
+                            $row->late_returns
+                        ]);
+                    }
+                    break;
+
+                case 'transactions':
+                    fputcsv($file, ['ID', 'Student Name', 'Student ID', 'Book Title', 'Asset Code', 'Borrowed At', 'Due Date', 'Returned At', 'Status', 'Penalty', 'Payment Status']);
+                    $data = Transaction::with(['user', 'bookAsset.bookTitle'])
+                        ->orderBy('created_at', 'desc')
+                        ->get();
+                    foreach ($data as $row) {
+                        fputcsv($file, [
+                            $row->id,
+                            $row->user->name ?? 'N/A',
+                            $row->user->student_id ?? 'N/A',
+                            $row->bookAsset->bookTitle->title ?? 'N/A',
+                            $row->bookAsset->asset_code ?? 'N/A',
+                            $row->borrowed_at ? $row->borrowed_at->format('Y-m-d H:i') : '',
+                            $row->due_date ? $row->due_date->format('Y-m-d') : '',
+                            $row->returned_at ? $row->returned_at->format('Y-m-d H:i') : '',
+                            $row->returned_at ? 'Returned' : 'Borrowed',
+                            $row->penalty_amount ? '₱' . number_format($row->penalty_amount, 2) : '₱0.00',
+                            $row->payment_status ?? 'N/A',
+                        ]);
+                    }
+                    break;
+            }
+
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+
+    // Helper methods for export
+    private function getMostBorrowedData($request)
+    {
+        $query = Transaction::query()
+            ->join('book_assets', 'transactions.book_asset_id', '=', 'book_assets.id')
+            ->join('book_titles', 'book_assets.book_title_id', '=', 'book_titles.id')
+            ->whereNull('book_assets.deleted_at')
+            ->whereNull('book_titles.deleted_at')
+            ->select(
+                'book_titles.title',
+                'book_titles.author',
+                'book_titles.category',
+                DB::raw('COUNT(transactions.id) as borrow_count')
+            )
+            ->groupBy('book_titles.id', 'book_titles.title', 'book_titles.author', 'book_titles.category');
+
+        if ($request->has('start_date')) {
+            $query->where('transactions.borrowed_at', '>=', $request->start_date);
+        }
+        if ($request->has('end_date')) {
+            $query->where('transactions.borrowed_at', '<=', $request->end_date);
+        }
+
+        return $query->orderByDesc('borrow_count')->limit(50)->get();
+    }
+
+    private function getTopStudentsData($request)
+    {
+        $query = Transaction::query()
+            ->join('users', 'transactions.user_id', '=', 'users.id')
+            ->whereNull('users.deleted_at')
+            ->select(
+                'users.name',
+                'users.student_id',
+                'users.course',
+                'users.year_level',
+                'users.section',
+                DB::raw('COUNT(transactions.id) as borrow_count'),
+                DB::raw('SUM(CASE WHEN transactions.returned_at IS NULL THEN 1 ELSE 0 END) as active_loans')
+            )
+            ->where('users.role', 'student')
+            ->groupBy('users.id', 'users.name', 'users.student_id', 'users.course', 'users.year_level', 'users.section');
+
+        if ($request->has('start_date')) {
+            $query->where('transactions.borrowed_at', '>=', $request->start_date);
+        }
+        if ($request->has('end_date')) {
+            $query->where('transactions.borrowed_at', '<=', $request->end_date);
+        }
+
+        return $query->orderByDesc('borrow_count')->limit(50)->get();
+    }
+
+    private function getPenaltiesData($request)
+    {
+        $query = Transaction::query()
+            ->select(
+                DB::raw('DATE_FORMAT(returned_at, "%Y-%m") as month'),
+                DB::raw('SUM(penalty_amount) as total_penalties'),
+                DB::raw('SUM(CASE WHEN payment_status = "paid" THEN penalty_amount ELSE 0 END) as collected'),
+                DB::raw('SUM(CASE WHEN payment_status = "pending" THEN penalty_amount ELSE 0 END) as pending'),
+                DB::raw('COUNT(CASE WHEN penalty_amount > 0 THEN 1 END) as late_returns')
+            )
+            ->whereNotNull('returned_at')
+            ->groupBy(DB::raw('DATE_FORMAT(returned_at, "%Y-%m")'));
+
+        if ($request->has('start_date')) {
+            $query->where('returned_at', '>=', $request->start_date);
+        }
+        if ($request->has('end_date')) {
+            $query->where('returned_at', '<=', $request->end_date);
+        }
+
+        return $query->orderByDesc('month')->get();
+    }
+    /**
+     * Get Departmental Analytics Stats
+     * 
+     * @param Request $request - course (required), year_level, section
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function departmentStats(Request $request)
+    {
+        $course = $request->input('course');
+        $year = $request->input('year_level');
+        $section = $request->input('section');
+
+        // Base query for users in this department
+        $usersQuery = User::where('role', 'student');
+
+        if ($course)
+            $usersQuery->where('course', $course);
+        if ($year)
+            $usersQuery->where('year_level', $year);
+        if ($section)
+            $usersQuery->where('section', $section);
+
+        // Eager load aggregates: active loans, overdue count, and pending fines per student
+        $students = $usersQuery
+            ->withCount([
+                'transactions as active_loans_count' => function ($q) {
+                    $q->whereNull('returned_at');
+                },
+                'transactions as overdue_count' => function ($q) {
+                    $q->whereNull('returned_at')
+                      ->where('due_date', '<', now());
+                },
+            ])
+            ->withSum(
+                ['transactions as pending_fines_sum' => function ($q) {
+                    $q->where('payment_status', 'pending');
+                }],
+                'penalty_amount'
+            )
+            ->limit(1000) // Safety ceiling for large departments
+            ->get();
+
+        $studentIds = $students->pluck('id');
+
+        // Stats
+        $totalStudents = $students->count();
+
+        // Active Borrowers (unique students with unreturned books)
+        $activeBorrowers = Transaction::whereIn('user_id', $studentIds)
+            ->whereNull('returned_at')
+            ->distinct('user_id')
+            ->count('user_id');
+
+        // Late Returners (unique students with overdue books)
+        $lateReturners = Transaction::whereIn('user_id', $studentIds)
+            ->whereNull('returned_at')
+            ->where('due_date', '<', now())
+            ->distinct('user_id')
+            ->count('user_id');
+
+        // Total Pending Fines
+        $pendingFines = Transaction::whereIn('user_id', $studentIds)
+            ->where('payment_status', 'pending')
+            ->sum('penalty_amount');
+
+        // Student Breakdown — no extra queries, uses eager-loaded aggregates
+        $breakdown = $students->map(function ($student) {
+            $activeLoans = (int) $student->active_loans_count;
+            $hasOverdue = (int) $student->overdue_count > 0;
+            $totalFine = (float) ($student->pending_fines_sum ?? 0);
+
+            return [
+                'id' => $student->id,
+                'name' => $student->name,
+                'student_id' => $student->student_id,
+                'year_level' => $student->year_level,
+                'section' => $student->section,
+                'active_loans' => $activeLoans,
+                'status' => $hasOverdue ? 'Overdue' : ($activeLoans > 0 ? 'Active' : 'Clear'),
+                'pending_fine' => $totalFine
+            ];
+        });
+
+        return response()->json([
+            'stats' => [
+                'total_students' => $totalStudents,
+                'active_borrowers' => $activeBorrowers,
+                'late_returners' => $lateReturners,
+                'pending_fines' => $pendingFines
+            ],
+            'students' => $breakdown
+        ]);
+    }
+
+    /**
+     * Get Borrowed Books Statistics by Call Number Range and Month
+     * Uses the monthly_statistics table that is auto-updated on borrow
+     */
+    public function statistics(Request $request)
+    {
+        try {
+            // Default to current academic year
+            // If current month is Jan-May (e.g. Feb 2026), AY started in 2025
+            // If current month is June-Dec (e.g. Sept 2025), AY starts in 2025
+            $currentYear = (int) date('Y');
+            $currentMonth = (int) date('n');
+            $defaultYear = ($currentMonth < 6) ? $currentYear - 1 : $currentYear;
+
+            $year = (int) $request->input('year', $defaultYear);
+
+            // Fetch configured ranges
+            $configuredRanges = \App\Models\LibrarySetting::getValue('statistics_ranges', []);
+            
+            // Fallback if empty
+            if (empty($configuredRanges)) {
+                $configuredRanges = [];
+                for ($i = 0; $i < 10; $i++) {
+                    $start = $i * 100;
+                    $configuredRanges[] = [
+                        'start' => $start,
+                        'end' => $start + 99,
+                        'label' => sprintf("%03d-%03d", $start, $start + 99)
+                    ];
+                }
+            }
+
+            // Extract labels for frontend
+            $ranges = array_column($configuredRanges, 'label');
+
+            // Months order: June(6) to Dec(12), Jan(1) to May(5)
+            $months = [6, 7, 8, 9, 10, 11, 12, 1, 2, 3, 4, 5];
+
+            // Initialize matrix
+            $matrix = [];
+            foreach ($ranges as $range) {
+                foreach ($months as $m) {
+                    $matrix[$range][$m] = 0;
+                }
+            }
+
+            // Fetch from monthly_statistics table
+            // Academic year spans: June of $year to May of $year+1
+            $stats = \App\Models\MonthlyStatistic::where(function ($query) use ($year) {
+                // June to December of the start year
+                $query->where(function ($q) use ($year) {
+                    $q->where('year', $year)
+                        ->whereIn('month', [6, 7, 8, 9, 10, 11, 12]);
+                })
+                    // January to May of the next year
+                    ->orWhere(function ($q) use ($year) {
+                        $q->where('year', $year + 1)
+                            ->whereIn('month', [1, 2, 3, 4, 5]);
+                    });
+            })->get();
+
+            // Populate matrices with data
+            $studentData = [];
+            $facultyData = [];
+
+            // Initialize matrices
+            foreach ($ranges as $range) {
+                foreach ($months as $m) {
+                    $studentData[$range][$m] = 0;
+                    $facultyData[$range][$m] = 0;
+                }
+            }
+
+            foreach ($stats as $stat) {
+                // Find matching configured range
+                $matchingLabel = null;
+                foreach ($configuredRanges as $conf) {
+                    if ($stat->range_start == $conf['start'] && $stat->range_end == $conf['end']) {
+                        $matchingLabel = $conf['label'];
+                        break;
+                    }
+                }
+
+                // Only process if we found a matching range in current configuration
+                if ($matchingLabel && isset($studentData[$matchingLabel][$stat->month])) {
+                    if ($stat->user_type === 'faculty') {
+                        $facultyData[$matchingLabel][$stat->month] += $stat->count;
+                    } else {
+                        // Default to student for 'student' or null (old data)
+                        $studentData[$matchingLabel][$stat->month] += $stat->count;
+                    }
+                }
+            }
+
+            return response()->json([
+                'year' => $year,
+                'academic_year' => "A.Y. $year-" . ($year + 1),
+                'ranges' => $ranges,
+                'months' => $months,
+                'student_data' => $studentData,
+                'faculty_data' => $facultyData
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Statistics endpoint error: ' . $e->getMessage());
+            return response()->json([
+                'error' => $e->getMessage(),
+                'year' => $request->input('year'),
+                'ranges' => [],
+                'months' => [],
+                'data' => []
+            ], 500);
+        }
+    }
+
+    /**
+     * Get Faculty Borrowed Books Statistics
+     * Statistics for books borrowed by faculty members
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function facultyStatistics(Request $request)
+    {
+        $year = $request->input('year', date('Y'));
+
+        // Total faculty borrowed books
+        $totalBorrowed = \App\Models\FacultyTransaction::whereYear('borrowed_at', $year)->count();
+
+        // Currently borrowed (active loans)
+        $activeBorrowed = \App\Models\FacultyTransaction::whereNull('returned_at')->count();
+
+        // Overdue books
+        $overdue = \App\Models\FacultyTransaction::whereNull('returned_at')
+            ->where('due_date', '<', now())
+            ->count();
+
+        // Total fines collected
+        $totalFines = \App\Models\FacultyTransaction::whereYear('borrowed_at', $year)
+            ->where('payment_status', 'paid')
+            ->sum('penalty_amount');
+
+        // Pending fines
+        $pendingFines = \App\Models\FacultyTransaction::where('payment_status', 'pending')
+            ->sum('penalty_amount');
+
+        // Monthly breakdown
+        $monthlyData = \App\Models\FacultyTransaction::whereYear('borrowed_at', $year)
+            ->select(
+                DB::raw('MONTH(borrowed_at) as month'),
+                DB::raw('COUNT(*) as count')
+            )
+            ->groupBy(DB::raw('MONTH(borrowed_at)'))
+            ->orderBy('month')
+            ->get()
+            ->keyBy('month');
+
+        $months = [];
+        for ($i = 1; $i <= 12; $i++) {
+            $months[] = [
+                'month' => $i,
+                'name' => date('M', mktime(0, 0, 0, $i, 1)),
+                'count' => $monthlyData->get($i)?->count ?? 0
+            ];
+        }
+
+        // By Department
+        $byDepartment = \App\Models\FacultyTransaction::join('faculties', 'faculty_transactions.faculty_id', '=', 'faculties.id')
+            ->whereYear('borrowed_at', $year)
+            ->select(
+                'faculties.department',
+                DB::raw('COUNT(*) as count')
+            )
+            ->groupBy('faculties.department')
+            ->orderByDesc('count')
+            ->get();
+
+        // Top Faculty Borrowers
+        $topBorrowers = \App\Models\FacultyTransaction::join('faculties', 'faculty_transactions.faculty_id', '=', 'faculties.id')
+            ->whereYear('borrowed_at', $year)
+            ->select(
+                'faculties.id',
+                'faculties.name',
+                'faculties.faculty_id',
+                'faculties.department',
+                DB::raw('COUNT(*) as borrow_count')
+            )
+            ->groupBy('faculties.id', 'faculties.name', 'faculties.faculty_id', 'faculties.department')
+            ->orderByDesc('borrow_count')
+            ->limit(10)
+            ->get();
+
+        return response()->json([
+            'year' => (int) $year,
+            'summary' => [
+                'total_borrowed' => $totalBorrowed,
+                'active_borrowed' => $activeBorrowed,
+                'overdue' => $overdue,
+                'total_fines_collected' => (float) $totalFines,
+                'pending_fines' => (float) $pendingFines,
+            ],
+            'monthly' => $months,
+            'by_department' => $byDepartment,
+            'top_borrowers' => $topBorrowers
+        ]);
+    }
+
+    /**
+     * Get Current Month Financial Data (Real-time)
+     * 
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function financialCurrent()
+    {
+        $current = MonthlyFinancialRecord::getCurrentMonth();
+
+        return response()->json([
+            'year' => $current->year,
+            'month' => $current->month,
+            'month_name' => $current->month_name,
+            'total_fines' => (float) $current->total_fines,
+            'total_collected' => (float) $current->total_collected,
+            'total_pending' => (float) $current->total_pending,
+            'late_returns' => (int) $current->late_returns,
+            'is_finalized' => $current->is_finalized,
+        ]);
+    }
+
+    /**
+     * Get Financial History (Monthly Records)
+     * 
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function financialHistory(Request $request)
+    {
+        $limit = $request->input('limit', 12);
+        $year = $request->input('year');
+
+        // Recalculate all months that have transaction data
+        $this->syncFinancialRecords();
+
+        $query = MonthlyFinancialRecord::orderByDesc('year')
+            ->orderByDesc('month');
+
+        if ($year) {
+            $query->where('year', $year);
+        }
+
+        $records = $query->limit($limit)->get();
+
+        // Calculate grand totals
+        $totals = [
+            'total_fines' => $records->sum('total_fines'),
+            'total_collected' => $records->sum('total_collected'),
+            'total_pending' => $records->sum('total_pending'),
+            'total_late_returns' => $records->sum('late_returns'),
+        ];
+
+        return response()->json([
+            'records' => $records->map(function ($record) {
+                return [
+                    'id' => $record->id,
+                    'year' => $record->year,
+                    'month' => $record->month,
+                    'month_name' => $record->month_name,
+                    'period' => sprintf('%s %d', $record->month_name, $record->year),
+                    'total_fines' => (float) $record->total_fines,
+                    'total_collected' => (float) $record->total_collected,
+                    'total_pending' => (float) $record->total_pending,
+                    'late_returns' => (int) $record->late_returns,
+                    'is_finalized' => $record->is_finalized,
+                    'finalized_at' => $record->finalized_at,
+                ];
+            }),
+            'totals' => $totals,
+        ]);
+    }
+
+    /**
+     * Sync financial records from transactions
+     * Creates/updates records for all months that have transaction data
+     */
+    private function syncFinancialRecords()
+    {
+        // Get all distinct months that have transactions
+        $months = Transaction::query()
+            ->whereNotNull('returned_at')
+            ->selectRaw('YEAR(returned_at) as year, MONTH(returned_at) as month')
+            ->groupBy(DB::raw('YEAR(returned_at), MONTH(returned_at)'))
+            ->get();
+
+        foreach ($months as $m) {
+            MonthlyFinancialRecord::recalculateForMonth($m->year, $m->month);
+        }
+    }
+}

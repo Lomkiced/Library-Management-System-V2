@@ -1,0 +1,355 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================
+   BLUE & WHITE THEME - PCLU Library System
+   Primary: #020463 (Dark Blue)
+   Secondary: #ffffff (White)
+   Accent: #1a1c7a (Light Blue - Hover)
+   ============================================ */
+
+:root {
+    --color-primary: #020463;
+    --color-primary-light: #1a1c7a;
+    --color-primary-lighter: #2a2c9a;
+    --color-accent: #4a4cff;
+    --color-white: #ffffff;
+    --color-gray-50: #f8fafc;
+    --color-gray-100: #f1f5f9;
+    --color-gray-200: #e2e8f0;
+    --color-gray-300: #cbd5e1;
+    --color-gray-400: #94a3b8;
+    --color-gray-500: #64748b;
+    --color-gray-600: #475569;
+    --color-gray-700: #334155;
+    --color-gray-800: #1e293b;
+    --color-success: #10b981;
+    --color-warning: #f59e0b;
+    --color-danger: #ef4444;
+    
+    --bg-primary: #f8fafc;
+    --bg-secondary: #ffffff;
+    --bg-card: #ffffff;
+    --text-primary: #1e293b;
+    --text-secondary: #475569;
+    --text-muted: #94a3b8;
+    --border-color: #e2e8f0;
+}
+
+.dark {
+    --color-primary: #4a4cff;
+    --color-primary-light: #6366f1;
+    --color-primary-lighter: #818cf8;
+    --color-accent: #a5b4fc;
+    --color-white: #0f172a;
+    --color-gray-50: #1e293b;
+    --color-gray-100: #334155;
+    --color-gray-200: #475569;
+    --color-gray-300: #64748b;
+    --color-gray-400: #94a3b8;
+    --color-gray-500: #cbd5e1;
+    --color-gray-600: #e2e8f0;
+    --color-gray-700: #f1f5f9;
+    --color-gray-800: #f8fafc;
+    
+    --bg-primary: #0f172a;
+    --bg-secondary: #1e293b;
+    --bg-card: #1e293b;
+    --text-primary: #f8fafc;
+    --text-secondary: #cbd5e1;
+    --text-muted: #64748b;
+    --border-color: #334155;
+}
+
+@layer base {
+    body {
+        @apply font-sans text-slate-800 bg-slate-50 antialiased;
+        font-family: 'Inter', system-ui, sans-serif;
+    }
+
+    /* ===== DROPDOWN STYLING ===== */
+    select option {
+        color: #000000 !important;
+        background-color: #ffffff !important;
+        padding: 8px 12px;
+    }
+
+    select:not(:invalid) {
+        color: #000000 !important;
+    }
+
+    /* ===== FOCUS STATES - Blue Theme ===== */
+    input:focus,
+    select:focus,
+    textarea:focus {
+        outline: none;
+        border-color: var(--color-primary) !important;
+        box-shadow: 0 0 0 3px rgba(2, 4, 99, 0.15) !important;
+        /* Keep RGBA as-is for now since CSS variables in RGBA are tricky without extra setup, but standardized the border */
+    }
+
+    /* ===== SCROLLBAR STYLING ===== */
+    ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+        background: var(--color-gray-100);
+        border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        background: var(--color-gray-300);
+        border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+        background: var(--color-gray-400);
+    }
+}
+
+@layer components {
+
+    /* ===== PRIMARY BUTTON - Blue Theme ===== */
+    .btn-primary {
+        @apply px-4 py-2.5 rounded-xl font-bold transition-all duration-200;
+        background-color: var(--color-primary);
+        color: var(--color-white);
+    }
+
+    .btn-primary:hover {
+        background-color: var(--color-primary-light);
+        box-shadow: 0 10px 25px -5px rgba(2, 4, 99, 0.3);
+    }
+
+    /* ===== CARD STYLES ===== */
+    .card {
+        @apply bg-white rounded-2xl shadow-lg border border-gray-100;
+    }
+
+    .card-header {
+        @apply p-6 border-b border-gray-100;
+    }
+
+    .card-body {
+        @apply p-6;
+    }
+
+    /* ===== TOAST NOTIFICATIONS ===== */
+    .toast-success {
+        @apply fixed bottom-4 right-4 bg-white border-l-4 border-green-500 shadow-xl rounded-lg p-4 z-50;
+    }
+
+    .toast-error {
+        @apply fixed bottom-4 right-4 bg-white border-l-4 shadow-xl rounded-lg p-4 z-50;
+        border-left-color: var(--color-primary);
+    }
+
+    /* ===== TABLE STYLES ===== */
+    .table-header {
+        @apply bg-slate-50 text-slate-500 uppercase text-xs font-bold tracking-wider;
+    }
+
+    .table-row {
+        @apply hover:bg-slate-50 transition;
+    }
+
+    .table-action-btn {
+        @apply p-2 rounded-lg transition-all duration-200;
+    }
+
+    .table-action-btn:hover {
+        background-color: rgba(2, 4, 99, 0.1);
+    }
+}
+
+@layer utilities {
+    .no-scrollbar::-webkit-scrollbar {
+        display: none;
+    }
+
+    .no-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+
+    /* ===== BLUE GRADIENTS ===== */
+    .bg-blue-gradient {
+        background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
+    }
+
+    .bg-blue-gradient-light {
+        background: linear-gradient(135deg, #1a1c7a 0%, #2a2c9a 100%);
+    }
+
+    /* ===== TEXT UTILITIES ===== */
+    .text-primary-blue {
+        color: var(--color-primary);
+    }
+
+    .text-accent-blue {
+        color: var(--color-accent);
+    }
+
+    /* ===== ANIMATION UTILITIES ===== */
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    @keyframes slideIn {
+        from {
+            transform: translateX(-100%);
+        }
+
+        to {
+            transform: translateX(0);
+        }
+    }
+
+    @keyframes scaleIn {
+        from {
+            opacity: 0;
+            transform: scale(0.95);
+        }
+
+        to {
+            opacity: 1;
+            transform: scale(1);
+        }
+    }
+
+    .animate-fadeIn {
+        animation: fadeIn 0.3s ease-out forwards;
+    }
+
+    .animate-slideIn {
+        animation: slideIn 0.3s ease-out forwards;
+    }
+
+    .animate-scaleIn {
+        animation: scaleIn 0.3s ease-out forwards;
+    }
+}
+
+/* ============================================
+   PRINT LABEL STYLES
+   For sticky spine labels with QR/Barcode
+   ============================================ */
+@media print {
+    body * {
+        visibility: hidden;
+    }
+
+    /* Make the printed content visible */
+    .print-area,
+    .print-area * {
+        visibility: visible !important;
+    }
+
+    /* Position the print area at the absolute top-left */
+    .print-area {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+    }
+
+    /* Grid layout for printing */
+    .print-grid {
+        display: grid !important;
+        grid-template-columns: repeat(auto-fill, 3in) !important;
+        gap: 0.25in !important;
+        justify-content: center !important;
+    }
+
+    /* Ensure background colors print */
+    * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+
+    /* Hide modal UI elements */
+    .no-print {
+        display: none !important;
+    }
+
+    /* Page break handling */
+    .page-break-avoid {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+}
+
+.print-label-container {
+    width: 2in;
+    min-height: 3in;
+    padding: 8px;
+    background: white;
+    border: 1px solid #ddd;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    font-family: 'Inter', sans-serif;
+}
+
+.print-label-title {
+    font-size: 10px;
+    font-weight: 700;
+    text-align: center;
+    color: #020463;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    line-height: 1.2;
+    margin-bottom: 8px;
+}
+
+.print-label-author {
+    font-size: 8px;
+    font-weight: 500;
+    text-align: center;
+    color: #475569;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-bottom: 12px;
+}
+
+.print-label-qr {
+    width: 80px;
+    height: 80px;
+    margin-bottom: 8px;
+}
+
+.print-label-barcode {
+    width: 100%;
+    max-width: 1.8in;
+}
+
+.print-label-code {
+    font-family: 'Courier New', monospace;
+    font-size: 9px;
+    font-weight: 700;
+    text-align: center;
+    color: #020463;
+    margin-top: 4px;
+}

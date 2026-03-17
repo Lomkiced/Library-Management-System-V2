@@ -1,97 +1,67 @@
-# 📦 Complete Guide: Deploying to a New Personal Computer
+# 📦 Complete Guide: Deploying to a Brand New Desktop
 
- Follow this guide to move or install the Library Management System on a fresh Windows PC.
-
----
-
-## 🛠️ Phase 1: Preparation
-
-### 1. Install Docker Desktop
-This is the **only** required software. You do **not** need WAMP, XAMPP, PHP, or Node.js.
-
-1.  Download **Docker Desktop for Windows** from [docker.com](https://www.docker.com/products/docker-desktop/).
-2.  Run the installer.
-3.  ✅ Ensure **"Use WSL 2 based engine"** is checked (it usually is by default).
-4.  Restart your computer if prompted.
-5.  Open **Docker Desktop** and wait until the status bar in the bottom-left turns green (Engine running).
-
-### 2. Copy the Project Files
-Transfer your code to the new PC.
-
-*   **Method A (USB / Network Share):**
-    Copy the entire `Library Management System` folder from your old PC to the new one.
-*   **Method B (Git):**
-    If your code is on GitHub, install Git and run `git clone <your-repo-url>`.
+Follow this guide to move or install the Library Management System on a completely fresh Windows PC. Because this system is containerized with Docker, you **do not** need to install complex web servers, PHP, or databases. Everything is handled automatically.
 
 ---
 
-## ⚙️ Phase 2: Configuration
+## 🛠️ Phase 1: Software Prerequisites
 
-### 1. Transfer the `.env` File (Crucial!)
-The `.env` file holds your configuration (passwords, mail settings). It is **hidden** by default and **not** included in Git.
+On the new desktop, you only need to download and install one single piece of software:
 
-1.  On the **Old PC**, go to the project folder. Use "View > Show > Hidden items" in File Explorer if you don't see it.
-2.  Copy `.env` to a USB drive or cloud storage.
-3.  Paste it into the project folder on the **New PC**.
-
-> **Note:** If you start fresh without the old `.env`, rename `.env.docker.example` to `.env`. You will need to re-configure your mail settings.
+1.  **Download Docker Desktop for Windows** from [docker.com](https://www.docker.com/products/docker-desktop/).
+2.  **Install it.** Make sure the checkbox that says **"Use WSL 2 based engine"** is checked during installation (it usually is by default).
+3.  **Restart** the new desktop if prompted by the installer.
+4.  **Open Docker Desktop** from your start menu. Wait until the status indicator in the bottom-left turns green (meaning the Engine is running). Keep it running in the background.
 
 ---
 
-## 🚀 Phase 3: Deployment
+## 📂 Phase 2: Transferring the Project Files
 
-### 1. Run the Auto-Deploy Script
-I created a script that handles everything for you (IP detection, configuration updates, building).
+You need to move the actual code from your current PC to the new one.
 
-1.  Open the project folder on the **New PC**.
-2.  Right-click empty space and select **Open in Terminal** (or Shift+Right-Click > Open PowerShell).
-3.  Run this command:
+1.  **Locate the Folder:** Find the `Library Management System` folder on your old PC.
+2.  **Copy It:** Copy this entire folder to a USB Flash Drive or an external hard drive.
+3.  **Paste It:** Plug the USB into the new desktop and paste the folder wherever you prefer (e.g., your Desktop or Documents folder).
+
+---
+
+## 🔐 Phase 3: The Crucial Settings File (`.env`)
+
+The `.env` file contains all the database passwords, application keys, and email settings. It is a hidden file, so you might not see it at first glance.
+
+1.  **On the old PC:** Open the `Library Management System` folder. If you don't see a file simply named `.env` (it might look like a blank file icon), go to **"View"** at the top of File Explorer -> **"Show"** -> check **"Hidden items"**.
+2.  **Copy the `.env` file** to your USB drive.
+3.  **On the new PC:** Paste this exact `.env` file directly inside the new `Library Management System` folder alongside all the other project files.
+
+*(Note: If you do not transfer this file, the application will not be able to connect to its database or run correctly!)*
+
+---
+
+## 🚀 Phase 4: Deploying the System
+
+Now that the files and settings are on the new computer, it is time to turn it on.
+
+1.  On the **new PC**, open the `Library Management System` folder.
+2.  **Right-click** on an empty space inside the folder and select **Open in Terminal** (If you don't see this, you can right-click and select "Show more options", or you can hold `Shift` + Right-Click and select "Open PowerShell window here").
+3.  Type the following command into the black/blue window and hit **Enter**:
     ```powershell
-    .\deploy.ps1
+    docker compose up -d --build
     ```
-
-### 2. Wait for Completion
-*   The first run will take **5-10 minutes** to download and build Docker images.
-*   Once done, it will show green text with your access URLs.
-
-### 3. Verify Access
-Open your browser and test:
-*   **Localhost:** `http://localhost:8080`
-*   **LAN Access:** The script will verify the LAN URL (e.g., `http://192.168.1.x:8080`).
+4.  **Wait:** Docker will now download all the necessary environments (PHP, Nginx, MySQL, Node, Redis) and build the application automatically. This first run will take about **5-10 minutes** depending on your internet speed.
+5.  Once it finishes downloading and returns you to the typing cursor, the system is fully live!
 
 ---
 
-## 💾 Phase 4: Restore Data (Optional)
+## 🌐 Phase 5: Network Access & Kiosks
 
-Do this **only** if you want to transfer your existing books, users, and transactions from the old PC. If you want a fresh empty system, skip this.
+1.  **Local Access:** To view the admin dashboard on the new desktop itself, open any browser and go to:
+    `https://localhost:8443`
+2.  **Open the Firewall:** To allow other devices (like student phones, tablets, or separate scanning kiosks) on the same Wi-Fi network to access the system, you need to tell Windows to allow it.
+    *   Inside the project folder, locate `Open_Firewall.bat`.
+    *   **Right-click** it and select **Run as administrator**.
+    *   Wait for the green SUCCESS message.
+3.  **Find Your URL:** To find out exactly what link to type into those other devices:
+    *   Double-click `Find_Library_URL.bat`.
+    *   It will automatically print out the physical Wi-Fi IP address links for the Administrator Dashboard, the Student Catalog Kiosk, and the Attendance Kiosk.
 
-### 1. Backup Old Data (On Old PC)
-Run this command in the project folder while Docker is running:
-```powershell
-docker compose exec mysql mysqldump -u root library_system > full_backup.sql
-```
-Copy the generated `full_backup.sql` file to the **New PC** project folder.
-
-### 2. Restore Data (On New PC)
-Run this command on the New PC (Docker must be running):
-```powershell
-cat full_backup.sql | docker compose exec -T mysql mysql -u root library_system
-```
-
----
-
-## ⚠️ Common Issues
-
-**"Ports are not available"**
-*   If port 8080 is taken, open `.env` and change `NGINX_HTTP_PORT=8080` to something else (e.g., 9090).
-*   Run `.\deploy.ps1` again.
-
-**"Access denied" / Login fails**
-*   The system auto-seeds a default admin if the database is empty:
-    *   **Email:** `admin@school.edu`
-    *   **Password:** `password123`
-*   If you restored data (Phase 4), use your **old login credentials**.
-
-**"Firewall Blocked"**
-*   When you first run Docker, Windows Firewall may ask for permission.
-*   Check both **Private** and **Public** networks and click **Allow Access**.
+*(Note: When accessing the site, your browser may warn you that the connection is "Not Secure" because it is a local network. Simply click "Advanced" and then "Proceed" to enter the site and grant it Camera permissions for the barcode scanner.)*

@@ -54,6 +54,10 @@ class UpdateBookTitleRequest extends FormRequest
             }
         }
 
+        if ($this->has('college') && $this->input('college') === 'GENERAL') {
+            $updates['college'] = null;
+        }
+
         if (!empty($updates)) {
             $this->merge($updates);
         }

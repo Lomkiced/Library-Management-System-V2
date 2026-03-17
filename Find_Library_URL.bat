@@ -13,8 +13,8 @@ echo.
 :: Initialize variables
 set "IP_ADDRESS="
 
-:: Extract a valid IPv4 address (ignoring local loops and APIPA) using PowerShell
-for /f "usebackq tokens=*" %%A in (`powershell -NoProfile -Command "(Get-NetIPAddress -AddressFamily IPv4 | Where-Object -Property InterfaceAlias -NotMatch 'Loopback' | Where-Object -Property IPAddress -NotMatch '169.254' | Select-Object -First 1).IPAddress"`) do (
+:: Extract a valid IPv4 address (explicitly matching Wi-Fi or Wireless adapters) using PowerShell
+for /f "usebackq tokens=*" %%A in (`powershell -NoProfile -Command "(Get-NetIPAddress -AddressFamily IPv4 | Where-Object -Property InterfaceAlias -Match 'Wi-Fi|Wireless' | Where-Object -Property IPAddress -NotMatch '169.254' | Select-Object -First 1).IPAddress"`) do (
     set "IP_ADDRESS=%%A"
 )
 

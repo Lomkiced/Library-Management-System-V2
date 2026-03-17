@@ -1440,9 +1440,9 @@ class BookController extends Controller
         $collegeGroupJoinedExpr = "COALESCE(NULLIF(book_titles.college, ''), 'GENERAL')";
 
         // 1. Title counts per college (1 query)
-        $collegesQuery = BookTitle::selectRaw("$collegeGroupExpr as college_group, COUNT(*) as total_books")
-            ->groupByRaw($collegeGroupExpr)
-            ->orderByRaw($collegeGroupExpr);
+        $collegesQuery = BookTitle::selectRaw("$collegeGroupJoinedExpr as college_group, COUNT(*) as total_books")
+            ->groupByRaw($collegeGroupJoinedExpr)
+            ->orderByRaw('college_group');
         
         if ($year) {
             $collegesQuery->where('copyright_year', $year);
@@ -1453,8 +1453,8 @@ class BookController extends Controller
         $availableTitlesQuery = BookTitle::whereHas('assets', function ($q) {
                 $q->where('status', 'available');
             })
-            ->selectRaw("$collegeGroupExpr as college_group, COUNT(*) as cnt")
-            ->groupByRaw($collegeGroupExpr);
+            ->selectRaw("$collegeGroupJoinedExpr as college_group, COUNT(*) as cnt")
+            ->groupByRaw($collegeGroupJoinedExpr);
 
         if ($year) {
             $availableTitlesQuery->where('copyright_year', $year);
@@ -1472,8 +1472,8 @@ class BookController extends Controller
         $assetCounts = $assetCountsQuery->get()->keyBy('college_group');
 
         // 4. Count distinct categories per college (1 query)
-        $categoryCountsQuery = BookTitle::selectRaw("$collegeGroupExpr as college_group, COUNT(DISTINCT category) as category_count")
-            ->groupByRaw($collegeGroupExpr);
+        $categoryCountsQuery = BookTitle::selectRaw("$collegeGroupJoinedExpr as college_group, COUNT(DISTINCT category) as category_count")
+            ->groupByRaw($collegeGroupJoinedExpr);
 
         if ($year) {
             $categoryCountsQuery->where('copyright_year', $year);

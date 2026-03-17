@@ -22,6 +22,21 @@ import { useToast } from "../components/ui/Toast";
 import StudentProfileModal from "./StudentProfileModal";
 import StudentFormModal from "./StudentFormModal";
 import Button from "../components/ui/Button";
+import { motion, AnimatePresence } from "framer-motion";
+
+// Animation Variants
+const containerVariants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: { staggerChildren: 0.1 }
+  }
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 20 },
+  show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } }
+};
 
 // Course color mapping
 const COURSE_COLORS = {
@@ -326,111 +341,138 @@ export default function Students() {
   const CourseCard = ({ course, totalStudents, activeLoans }) => {
     const colors = getCourseColors(course);
     return (
-      <button
+      <motion.button
+        variants={itemVariants}
+        whileHover={{ scale: 1.02 }}
+        whileTap={{ scale: 0.98 }}
         onClick={() => handleCourseClick(course)}
-        className={`group relative overflow-hidden rounded-3xl p-6 text-left transition-all duration-300 hover:scale-105 hover:shadow-2xl ${colors.bg} dark:bg-slate-800 border-2 ${colors.border} dark:border-slate-700`}
+        className={`group relative overflow-hidden rounded-[2rem] p-7 text-left shadow-sm hover:shadow-2xl transition-shadow border border-white/40 dark:border-slate-700/50 backdrop-blur-md ${colors.bg} dark:bg-slate-800/80`}
       >
         {/* Background gradient accent */}
-        <div className={`absolute top-0 right-0 w-24 h-24 bg-gradient-to-br ${colors.gradient} opacity-10 rounded-full -translate-y-8 translate-x-8 group-hover:scale-150 transition-transform duration-500`} />
+        <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${colors.gradient} opacity-20 dark:opacity-30 rounded-full blur-3xl -translate-y-8 translate-x-8 group-hover:scale-150 transition-transform duration-700 ease-out`} />
 
         <div className="relative z-10">
-          <div className="flex items-center gap-3 mb-4">
-            <div className={`p-3 rounded-xl bg-gradient-to-br ${colors.gradient} shadow-lg`}>
-              <GraduationCap size={24} className="text-white" />
+          <div className="flex items-center justify-between mb-5">
+            <div className={`p-3.5 rounded-2xl bg-white/50 dark:bg-slate-700/50 backdrop-blur-md shadow-sm border border-white/50 dark:border-slate-600/50 flex items-center gap-3`}>
+              <GraduationCap size={26} className={colors.text} />
+            </div>
+            <div className="opacity-0 group-hover:opacity-100 transform translate-x-4 group-hover:translate-x-0 transition-all duration-300">
+              <ChevronRight size={24} className={colors.text} />
             </div>
           </div>
-          <h3 className={`text-lg font-bold ${colors.text} dark:text-white mb-2`}>{course}</h3>
-          <div className="space-y-1">
-            <p className="text-3xl font-bold text-gray-800 dark:text-white">{totalStudents}</p>
-            <p className="text-xs text-gray-500 dark:text-slate-400">
-              students • {activeLoans} active loans
-            </p>
+          <h3 className={`text-xl font-bold text-gray-900 dark:text-white mb-2 truncate`}>{course}</h3>
+          
+          <div className="space-y-2">
+            <div className="flex items-end gap-2">
+              <p className="text-4xl font-black text-gray-900 dark:text-white tracking-tight">{totalStudents}</p>
+              <p className="text-sm font-semibold text-gray-500 dark:text-slate-400 mb-1">students</p>
+            </div>
+            <div className="flex items-center justify-between pt-4 border-t border-gray-200/50 dark:border-slate-700/50">
+              <p className="text-sm font-medium text-gray-600 dark:text-slate-300">
+                <span className={`font-bold ${colors.text}`}>{activeLoans}</span> active loans
+              </p>
+            </div>
           </div>
         </div>
-
-        {/* Arrow indicator */}
-        <div className="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-          <ChevronRight size={24} className={colors.text} />
-        </div>
-      </button>
+      </motion.button>
     );
   };
 
   return (
-    <div className="space-y-6 bg-gray-50 dark:bg-slate-900 p-8 min-h-screen transition-colors duration-300">
-      {/* HEADER & CONTROLS */}
-      <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-        <div className="flex items-center gap-4">
-          {selectedCourse && (
-            <button
-              onClick={handleBackToCourses}
-              className="p-3 rounded-xl bg-white dark:bg-slate-800 border-2 border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700 transition shadow-sm"
-            >
-              <ArrowLeft size={24} className="text-gray-600 dark:text-slate-300" />
-            </button>
-          )}
-          <div className="p-3 bg-primary-600 rounded-xl shadow-lg">
-            <Users size={28} className="text-white" />
-          </div>
-          <div>
-            <h2 className="text-2xl font-bold text-gray-800 dark:text-white">
-              {selectedCourse ? selectedCourse : "Student Directory"}
-            </h2>
-            <p className="text-gray-500 dark:text-slate-400 text-sm">
-              {selectedCourse
-                ? `${totalStudents} students in this course`
-                : `${courses.length} courses • Click to browse`
-              }
-            </p>
-          </div>
-        </div>
+    <div className="relative min-h-screen bg-slate-50 dark:bg-slate-900 overflow-hidden transition-colors duration-300">
+      {/* Decorative Background Orbs */}
+      <div className="fixed top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-primary-400/20 dark:bg-primary-900/20 blur-[100px] pointer-events-none" />
+      <div className="fixed bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-indigo-400/20 dark:bg-indigo-900/20 blur-[100px] pointer-events-none" />
 
-        <Button onClick={onAddNew} icon={PlusCircle}>
-          Add New Student
-        </Button>
-      </div>
+      <div className="relative z-10 p-8 space-y-8 max-w-[1600px] mx-auto">
+        {/* HEADER & CONTROLS */}
+        <motion.div 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-[2rem] shadow-lg border border-white/40 dark:border-slate-700/50 p-6 md:p-8 flex flex-col md:flex-row justify-between items-center gap-6"
+        >
+          <div className="flex flex-col md:flex-row justify-between items-center w-full gap-4">
+            <div className="flex items-center gap-4 w-full md:w-auto">
+              {selectedCourse && (
+                <button
+                  onClick={handleBackToCourses}
+                  className="p-3.5 rounded-2xl bg-white/80 dark:bg-slate-800/80 backdrop-blur-md shadow-sm border border-slate-200/50 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-700/80 transition-all group"
+                >
+                  <ArrowLeft size={22} className="text-slate-600 dark:text-slate-300 group-hover:-translate-x-1 transition-transform" />
+                </button>
+              )}
+              <div className="flex items-center gap-5">
+                <div className="p-4 bg-gradient-to-br from-primary-500 to-primary-700 rounded-2xl shadow-lg shadow-primary-500/30">
+                  <Users size={28} className="text-white" />
+                </div>
+                <div>
+                  <h2 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+                    {selectedCourse ? selectedCourse : "Student Directory"}
+                  </h2>
+                  <p className="text-slate-500 dark:text-slate-400 font-medium mt-1">
+                    {selectedCourse
+                      ? `${totalStudents} students in this course`
+                      : `${courses.length} courses • Click to browse`
+                    }
+                  </p>
+                </div>
+              </div>
+            </div>
 
-      {/* COURSE VIEW (when no course selected) */}
-      {!selectedCourse && (
-        <>
-          {loadingCourses ? (
-            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-12 text-center text-gray-400 dark:text-slate-500 border border-gray-100 dark:border-slate-700">
-              <Loader2 className="animate-spin h-10 w-10 mx-auto mb-4 text-primary-600" />
-              <p>Loading courses...</p>
-            </div>
-          ) : courses.length === 0 ? (
-            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-12 text-center text-gray-400 dark:text-slate-500 border border-gray-100 dark:border-slate-700">
-              <GraduationCap size={40} strokeWidth={1.5} className="mx-auto mb-4" />
-              <p className="text-lg font-medium">No courses found</p>
-              <p className="text-sm">Add new students using the button above</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-              {courses.map((c) => (
-                <CourseCard
-                  key={c.course}
-                  course={c.course}
-                  totalStudents={c.total_students}
-                  activeLoans={c.active_loans}
-                />
-              ))}
-            </div>
-          )}
-        </>
-      )}
+            <Button onClick={onAddNew} icon={PlusCircle} className="w-full md:w-auto shadow-lg shadow-primary-500/20 rounded-xl px-6 py-3 font-bold text-[15px]">
+              Add New Student
+            </Button>
+          </div>
+        </motion.div>
+
+        {/* COURSE VIEW (when no course selected) */}
+        {!selectedCourse && (
+          <AnimatePresence mode="wait">
+            {loadingCourses ? (
+              <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="bg-white/50 dark:bg-slate-800/50 backdrop-blur-md rounded-[2rem] shadow-sm p-20 text-center border border-white/40 dark:border-slate-700/50">
+                <Loader2 className="animate-spin h-10 w-10 mx-auto mb-6 text-primary-500" />
+                <p className="font-medium text-lg text-slate-600 dark:text-slate-400">Loading courses...</p>
+              </motion.div>
+            ) : courses.length === 0 ? (
+              <motion.div key="empty" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white/50 dark:bg-slate-800/50 backdrop-blur-md rounded-[2rem] shadow-sm p-20 text-center border border-white/40 dark:border-slate-700/50">
+                <div className="w-24 h-24 mx-auto bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-6 shadow-inner">
+                  <GraduationCap size={40} strokeWidth={1.5} className="text-slate-400 dark:text-slate-500" />
+                </div>
+                <p className="text-2xl font-bold text-slate-800 dark:text-white mb-2">No courses found</p>
+                <p className="text-slate-500 dark:text-slate-400">Add new students using the button above</p>
+              </motion.div>
+            ) : (
+              <motion.div key="grid" variants={containerVariants} initial="hidden" animate="show" className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                {courses.map((c) => (
+                  <CourseCard
+                    key={c.course}
+                    course={c.course}
+                    totalStudents={c.total_students}
+                    activeLoans={c.active_loans}
+                  />
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        )}
 
       {/* STUDENT LIST VIEW (when course selected) */}
       {selectedCourse && (
-        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-gray-100 dark:border-slate-700 overflow-hidden">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -20 }}
+          className="relative z-10 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-[2rem] shadow-lg border border-white/40 dark:border-slate-700/50 overflow-hidden"
+        >
           {/* Search Bar + Bulk Action */}
-          <div className="p-6 border-b border-gray-100 dark:border-slate-700">
+          <div className="p-6 border-b border-white/50 dark:border-slate-700/50 bg-white/40 dark:bg-slate-800/40">
             <div className="flex items-center gap-4 flex-wrap">
-              <div className="relative max-w-md flex-1">
-                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+              <div className="relative max-w-lg flex-1">
+                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400" size={20} />
                 <input
                   type="text"
                   placeholder="Search by name, ID, email..."
-                  className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 dark:border-slate-600 rounded-xl focus:ring-4 focus:ring-primary-100 dark:focus:ring-primary-900 focus:border-primary-600 outline-none text-sm transition-all bg-gray-50 dark:bg-slate-900 dark:text-white"
+                  className="w-full pl-12 pr-4 py-4 border-2 border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-4 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all bg-white/80 dark:bg-slate-800/80 dark:text-white shadow-sm font-medium"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
@@ -438,9 +480,9 @@ export default function Students() {
               {selectedStudents.length > 0 && (
                 <button
                   onClick={onBulkPromote}
-                  className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all text-sm"
+                  className="flex items-center gap-2 px-6 py-4 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-bold rounded-2xl shadow-lg shadow-emerald-500/30 hover:shadow-emerald-500/40 transition-all"
                 >
-                  <TrendingUp size={18} />
+                  <TrendingUp size={20} />
                   Bulk Promote ({selectedStudents.length})
                 </button>
               )}
@@ -449,23 +491,25 @@ export default function Students() {
 
           {/* Student Table */}
           {loadingStudents ? (
-            <div className="p-12 text-center">
-              <Loader2 className="animate-spin h-10 w-10 mx-auto mb-4 text-primary-600" />
-              <p className="text-gray-400 dark:text-slate-500">Loading students...</p>
+            <div className="p-20 text-center">
+              <Loader2 className="animate-spin h-10 w-10 mx-auto mb-6 text-primary-500" />
+              <p className="font-medium text-lg text-slate-600 dark:text-slate-400">Loading students...</p>
             </div>
           ) : courseStudents.length === 0 ? (
-            <div className="p-12 text-center text-gray-400 dark:text-slate-500">
-              <Users size={40} strokeWidth={1.5} className="mx-auto mb-4" />
-              <p className="text-lg font-medium">
-                {searchTerm ? `No students found matching "${searchTerm}"` : "No students in this course"}
+            <div className="p-20 text-center text-slate-400 dark:text-slate-500">
+              <div className="w-24 h-24 mx-auto bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-6 shadow-inner">
+                <Users size={40} strokeWidth={1.5} />
+              </div>
+              <p className="text-2xl font-bold text-slate-800 dark:text-white mb-2">
+                {searchTerm ? `No matches found for "${searchTerm}"` : "No students in this course"}
               </p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
-                <thead className="bg-slate-50 dark:bg-slate-700 text-slate-500 dark:text-slate-300 uppercase text-xs font-bold tracking-wider">
+                <thead className="bg-slate-100/50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 uppercase text-xs font-black tracking-widest border-b border-slate-200 dark:border-slate-700">
                   <tr>
-                    <th className="p-4 border-b border-slate-100 dark:border-slate-600 w-10">
+                    <th className="p-5 w-10">
                       <input
                         type="checkbox"
                         className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
@@ -477,19 +521,19 @@ export default function Students() {
                         title="Select all eligible students"
                       />
                     </th>
-                    <th className="p-4 border-b border-slate-100 dark:border-slate-600">Student</th>
-                    <th className="p-4 border-b border-slate-100 dark:border-slate-600">Year & Section</th>
-                    <th className="p-4 border-b border-slate-100 dark:border-slate-600">Contact</th>
-                    <th className="p-4 border-b border-slate-100 dark:border-slate-600 text-center">Library Activity</th>
-                    <th className="p-4 border-b border-slate-100 dark:border-slate-600 text-right">Actions</th>
+                    <th className="p-5">Student</th>
+                    <th className="p-5 text-center">Year & Sec</th>
+                    <th className="p-5">Contact</th>
+                    <th className="p-5 text-center">Library Activity</th>
+                    <th className="p-5 text-right w-44">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {courseStudents.map((student) => {
                     const colors = getCourseColors(selectedCourse);
                     return (
-                      <tr key={student.id} className={`hover:bg-slate-50 dark:hover:bg-slate-700/50 transition group ${selectedStudents.includes(student.id) ? 'bg-emerald-50/50 dark:bg-emerald-900/10' : ''}`}>
-                        <td className="p-4">
+                      <tr key={student.id} className={`hover:bg-primary-50/50 dark:hover:bg-primary-900/10 transition-colors group ${selectedStudents.includes(student.id) ? 'bg-emerald-50/50 dark:bg-emerald-900/10' : ''}`}>
+                        <td className="p-5">
                           <input
                             type="checkbox"
                             className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
@@ -498,80 +542,68 @@ export default function Students() {
                             onChange={() => toggleStudentSelection(student.id)}
                           />
                         </td>
-                        <td className="p-4">
-                          <div className="flex items-center gap-3">
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold bg-gradient-to-br ${colors.gradient}`}>
+                        <td className="p-5">
+                          <div className="flex items-center gap-4">
+                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-white text-lg font-bold bg-gradient-to-br ${colors.gradient} shadow-md`}>
                               {student.name.charAt(0)}
                             </div>
                             <div>
-                              <p className="font-semibold text-slate-800 dark:text-white">{student.name}</p>
-                              <p className="text-xs text-slate-400 font-mono">{student.student_id}</p>
+                              <p className="font-bold text-slate-900 dark:text-white text-[15px] leading-tight mb-1">{student.name}</p>
+                              <p className="text-[12px] text-slate-500 dark:text-slate-400 font-mono font-medium drop-shadow-sm">{student.student_id}</p>
                             </div>
                           </div>
                         </td>
-                        <td className="p-4 text-slate-600 dark:text-slate-300">
-                          <span className="font-medium">Year {student.year_level || '-'}</span>
-                          {student.section && <span className="text-sm text-slate-400 ml-2">• Sec {student.section}</span>}
+                        <td className="p-5 text-center text-slate-700 dark:text-slate-300">
+                          <span className="font-bold text-[15px]">Year {student.year_level || '-'}</span>
+                          {student.section && <span className="block text-sm text-slate-500 dark:text-slate-400 mt-0.5 font-medium">Sec {student.section}</span>}
                         </td>
-                        <td className="p-4">
-                          <div className="space-y-1 text-sm text-slate-500 dark:text-slate-400">
+                        <td className="p-5">
+                          <div className="space-y-1.5 text-sm text-slate-600 dark:text-slate-400 font-medium tracking-tight">
                             {student.email && (
                               <div className="flex items-center gap-2">
-                                <Mail size={12} /> {student.email}
+                                <Mail size={14} className="text-slate-400" /> {student.email}
                               </div>
                             )}
                             {student.phone_number && (
                               <div className="flex items-center gap-2">
-                                <Phone size={12} /> {student.phone_number}
+                                <Phone size={14} className="text-slate-400" /> {student.phone_number}
                               </div>
                             )}
                           </div>
                         </td>
-                        <td className="p-4 text-center">
-                          <div className="flex justify-center gap-3">
-                            <div className="text-center">
-                              <p className="text-lg font-bold text-emerald-600">{student.total_borrowed || 0}</p>
-                              <p className="text-xs text-slate-400">Borrowed</p>
+                        <td className="p-5 text-center">
+                          <div className="flex justify-center gap-4">
+                            <div className="text-center bg-emerald-50 dark:bg-emerald-500/10 rounded-xl py-1.5 px-3 border border-emerald-100 dark:border-emerald-500/20 shadow-sm">
+                              <p className="text-[16px] font-black text-emerald-600">{student.total_borrowed || 0}</p>
+                              <p className="text-[10px] font-bold text-emerald-500/70 uppercase tracking-wider">Borrowed</p>
                             </div>
-                            <div className="text-center">
-                              <p className={`text-lg font-bold ${student.active_loans > 0 ? "text-amber-600" : "text-slate-400"}`}>
+                            <div className={`text-center rounded-xl py-1.5 px-3 border shadow-sm ${student.active_loans > 0 ? "bg-amber-50 dark:bg-amber-500/10 border-amber-100 dark:border-amber-500/20" : "bg-slate-50 dark:bg-slate-500/10 border-slate-100 dark:border-slate-500/20"}`}>
+                              <p className={`text-[16px] font-black ${student.active_loans > 0 ? "text-amber-600" : "text-slate-400"}`}>
                                 {student.active_loans || 0}
                               </p>
-                              <p className="text-xs text-slate-400">Active</p>
+                              <p className={`text-[10px] font-bold uppercase tracking-wider ${student.active_loans > 0 ? "text-amber-500/70" : "text-slate-400/70"}`}>Active</p>
                             </div>
                           </div>
                         </td>
-                        <td className="p-4 text-right">
-                          <div className="flex justify-end gap-1">
+                        <td className="p-5 align-middle">
+                          <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                             {(student.year_level || 0) < 4 && (
                               <button
                                 onClick={() => onPromote(student)}
-                                className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg transition"
+                                className="text-xs bg-emerald-600 text-white p-2.5 rounded-xl hover:bg-emerald-700 transition shadow-sm hover:shadow-emerald-500/20"
                                 title={`Promote to Year ${(student.year_level || 0) + 1}`}
                               >
-                                <TrendingUp size={18} />
+                                <TrendingUp size={16} />
                               </button>
                             )}
-                            <button
-                              onClick={() => setViewingStudent(student)}
-                              className="p-2 text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition"
-                              title="View Profile"
-                            >
-                              <Award size={18} />
+                            <button onClick={() => setViewingStudent(student)} className="text-slate-500 bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 hover:text-amber-500 dark:hover:text-amber-400 p-2.5 rounded-xl transition shadow-sm" title="View Profile">
+                              <Award size={16} />
                             </button>
-                            <button
-                              onClick={() => onEdit(student)}
-                              className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition"
-                              title="Edit"
-                            >
-                              <Pencil size={18} />
+                            <button onClick={() => onEdit(student)} className="text-slate-500 bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 hover:text-indigo-600 dark:hover:text-indigo-400 p-2.5 rounded-xl transition shadow-sm" title="Edit">
+                              <Pencil size={16} />
                             </button>
-                            <button
-                              onClick={() => onDelete(student)}
-                              className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition"
-                              title="Delete"
-                            >
-                              <Trash2 size={18} />
+                            <button onClick={() => onDelete(student)} className="text-slate-500 bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 hover:text-rose-600 dark:hover:text-rose-400 p-2.5 rounded-xl transition shadow-sm" title="Delete">
+                              <Trash2 size={16} />
                             </button>
                           </div>
                         </td>
@@ -585,11 +617,11 @@ export default function Students() {
 
           {/* Pagination */}
           {courseStudents.length > 0 && totalPages > 1 && (
-            <div className="px-6 pb-6">
+            <div className="px-8 pb-8">
               <PaginationControls />
             </div>
           )}
-        </div>
+        </motion.div>
       )}
 
       {/* MODALS */}
@@ -616,6 +648,7 @@ export default function Students() {
           }}
         />
       )}
+      </div>
     </div>
   );
 }

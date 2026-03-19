@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import KioskLayout from "./KioskLayout";
 import axiosClient from "../axios-client";
-import { CheckCircle, XCircle, Loader2, ScanLine } from "lucide-react";
+import { CheckCircle, XCircle, Loader2, ScanLine, Delete, ArrowRight, Hash, AlertCircle, Wifi } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 // --- Glass Card Helper ---
@@ -11,53 +11,134 @@ const GlassCard = ({ children, className = "" }) => (
     </div>
 );
 
+// --- On-Screen Numpad Component ---
+const Numpad = ({ onInput, onBackspace, onSubmit, disabled, inputLength }) => {
+    const keys = [
+        ["1", "2", "3"],
+        ["4", "5", "6"],
+        ["7", "8", "9"],
+        ["-", "0", "⌫"],
+    ];
+
+    const handleKey = (key) => {
+        if (disabled) return;
+        if (key === "⌫") {
+            onBackspace();
+        } else {
+            onInput(key);
+        }
+    };
+
+    return (
+        <div className="space-y-3">
+            <div className="grid grid-cols-3 gap-2.5">
+                {keys.flat().map((key, i) => (
+                    <motion.button
+                        key={i}
+                        whileTap={{ scale: 0.92 }}
+                        whileHover={{ scale: 1.04 }}
+                        onClick={() => handleKey(key)}
+                        disabled={disabled}
+                        className={`relative h-14 rounded-xl font-bold text-lg transition-all duration-200 border select-none
+                            ${key === "⌫"
+                                ? "bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20 hover:border-red-500/30 active:bg-red-500/30"
+                                : key === "-"
+                                ? "bg-amber-500/10 border-amber-500/20 text-amber-400 hover:bg-amber-500/20 hover:border-amber-500/30 active:bg-amber-500/30"
+                                : "bg-white/5 border-white/10 text-white hover:bg-white/10 hover:border-white/20 active:bg-white/15"
+                            }
+                            ${disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}
+                        `}
+                    >
+                        {key === "⌫" ? <Delete size={20} className="mx-auto" /> : key}
+                    </motion.button>
+                ))}
+            </div>
+
+            {/* Submit Button */}
+            <motion.button
+                whileTap={{ scale: 0.97 }}
+                whileHover={{ scale: 1.01 }}
+                onClick={onSubmit}
+                disabled={disabled || inputLength < 3}
+                className={`w-full h-14 rounded-xl font-bold text-base flex items-center justify-center gap-3 transition-all duration-300 border select-none
+                    ${inputLength >= 3 && !disabled
+                        ? "bg-gradient-to-r from-blue-600 to-indigo-600 border-blue-500/30 text-white shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 hover:from-blue-500 hover:to-indigo-500"
+                        : "bg-white/5 border-white/10 text-slate-500 cursor-not-allowed"
+                    }
+                `}
+            >
+                {disabled ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                    <>
+                        <span>Submit Attendance</span>
+                        <ArrowRight size={18} />
+                    </>
+                )}
+            </motion.button>
+        </div>
+    );
+};
+
+
 export default function PublicAttendance() {
     const [isLoading, setIsLoading] = useState(false);
     const [result, setResult] = useState(null); // { success, message, student, logged_at }
+    const [manualId, setManualId] = useState("");
+    const [validationError, setValidationError] = useState("");
+    const [scannerFlash, setScannerFlash] = useState(false); // flash when QR scan is detected
     const isMounted = useRef(true);
     const lastScannedRef = useRef(null);
     const hiddenInputRef = useRef(null);
+    const manualInputRef = useRef(null);
 
-    // Keep hidden input focused at all times
+    // Keep hidden input focused at all times for QR/barcode scanner
     useEffect(() => {
         isMounted.current = true;
 
-        const focusInput = () => {
+        const focusHiddenInput = () => {
+            // Only steal focus if user is NOT focused on the manual input
             if (hiddenInputRef.current && !isLoading && !result) {
-                hiddenInputRef.current.focus();
+                const active = document.activeElement;
+                if (active !== manualInputRef.current) {
+                    hiddenInputRef.current.focus();
+                }
             }
         };
 
-        // Initial focus
-        focusInput();
+        focusHiddenInput();
 
-        // Re-focus on any click anywhere on the page
-        const handleClick = () => focusInput();
-        const handleFocusOut = () => {
-            // Small delay to allow any intentional focus changes
-            setTimeout(focusInput, 50);
+        const handleClick = (e) => {
+            // Don't steal focus if user clicked on the manual input area
+            const isManualArea = e.target.closest('[data-manual-input-area]');
+            if (!isManualArea) {
+                focusHiddenInput();
+            }
         };
 
         document.addEventListener("click", handleClick);
-        document.addEventListener("focusout", handleFocusOut);
 
-        // Also re-focus on an interval to be extra safe
-        const interval = setInterval(focusInput, 500);
+        // Periodic re-focus, but respect manual input focus
+        const interval = setInterval(() => {
+            const active = document.activeElement;
+            if (active !== manualInputRef.current) {
+                focusHiddenInput();
+            }
+        }, 1000);
 
         return () => {
             isMounted.current = false;
             document.removeEventListener("click", handleClick);
-            document.removeEventListener("focusout", handleFocusOut);
             clearInterval(interval);
         };
     }, [isLoading, result]);
 
-    // Auto-reset after scan
+    // Auto-reset after scan/submit result
     useEffect(() => {
         if (result) {
             const timer = setTimeout(() => {
-                resetScanner();
-            }, 3000); // 3 seconds delay
+                resetState();
+            }, 3000);
             return () => clearTimeout(timer);
         }
     }, [result]);
@@ -73,14 +154,12 @@ export default function PublicAttendance() {
             .animate-gentle-pulse {
                 animation: gentle-pulse 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
             }
-            @keyframes scanner-sweep {
-                0% { top: 20%; opacity: 0; }
-                10% { opacity: 0.6; }
-                90% { opacity: 0.6; }
-                100% { top: 80%; opacity: 0; }
+            @keyframes scanner-dot-pulse {
+                0%, 100% { opacity: 0.5; box-shadow: 0 0 4px rgba(34, 197, 94, 0.3); }
+                50% { opacity: 1; box-shadow: 0 0 12px rgba(34, 197, 94, 0.6); }
             }
-            .animate-scanner-sweep {
-                animation: scanner-sweep 3s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+            .animate-scanner-dot {
+                animation: scanner-dot-pulse 2s ease-in-out infinite;
             }
         `;
         document.head.appendChild(style);
@@ -89,25 +168,24 @@ export default function PublicAttendance() {
         };
     }, []);
 
-    // Handle USB scanner input (keyboard emulation)
-    const handleKeyDown = async (event) => {
-        if (event.key !== 'Enter') return;
-        event.preventDefault();
-
-        const scannedValue = event.target.value.trim();
-        event.target.value = ''; // Clear immediately for next scan
-
-        if (!scannedValue) return;
+    // --- Shared Attendance Submit Logic ---
+    const submitAttendance = useCallback(async (studentId, source = "manual") => {
+        const trimmed = studentId.trim();
+        if (!trimmed) return;
         if (!isMounted.current) return;
-        if (lastScannedRef.current === scannedValue) return; // Prevent duplicate
-        lastScannedRef.current = scannedValue;
 
         if (navigator.vibrate) navigator.vibrate(200);
-
         setIsLoading(true);
+        setValidationError("");
+
+        // Flash the scanner indicator when QR scan is detected
+        if (source === "scan") {
+            setScannerFlash(true);
+            setTimeout(() => setScannerFlash(false), 800);
+        }
 
         try {
-            const response = await axiosClient.post('/public/attendance', { student_id: scannedValue });
+            const response = await axiosClient.post('/public/attendance', { student_id: trimmed });
             if (isMounted.current) {
                 setResult(response.data);
                 playSound('success');
@@ -122,6 +200,53 @@ export default function PublicAttendance() {
         } finally {
             if (isMounted.current) setIsLoading(false);
         }
+    }, []);
+
+    // Handle USB scanner input (keyboard emulation)
+    const handleScannerKeyDown = async (event) => {
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
+
+        const scannedValue = event.target.value.trim();
+        event.target.value = '';
+
+        if (!scannedValue) return;
+        if (!isMounted.current) return;
+        if (lastScannedRef.current === scannedValue) return;
+        lastScannedRef.current = scannedValue;
+
+        await submitAttendance(scannedValue, "scan");
+    };
+
+    // Handle manual ID submission
+    const handleManualSubmit = async () => {
+        if (manualId.trim().length < 3) {
+            setValidationError("Please enter at least 3 characters.");
+            return;
+        }
+        if (lastScannedRef.current === manualId.trim()) {
+            setValidationError("Already submitted. Please wait.");
+            return;
+        }
+        lastScannedRef.current = manualId.trim();
+        await submitAttendance(manualId, "manual");
+    };
+
+    const handleManualKeyDown = (e) => {
+        if (e.key === "Enter") {
+            e.preventDefault();
+            handleManualSubmit();
+        }
+    };
+
+    // Numpad handlers
+    const handleNumpadInput = (char) => {
+        setValidationError("");
+        setManualId((prev) => prev + char);
+    };
+    const handleNumpadBackspace = () => {
+        setValidationError("");
+        setManualId((prev) => prev.slice(0, -1));
     };
 
     // Simple sound feedback using Web Audio API
@@ -134,9 +259,9 @@ export default function PublicAttendance() {
             gainNode.connect(audioContext.destination);
 
             if (type === 'success') {
-                oscillator.frequency.setValueAtTime(523, audioContext.currentTime); // C5
-                oscillator.frequency.setValueAtTime(659, audioContext.currentTime + 0.1); // E5
-                oscillator.frequency.setValueAtTime(784, audioContext.currentTime + 0.2); // G5
+                oscillator.frequency.setValueAtTime(523, audioContext.currentTime);
+                oscillator.frequency.setValueAtTime(659, audioContext.currentTime + 0.1);
+                oscillator.frequency.setValueAtTime(784, audioContext.currentTime + 0.2);
                 gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
                 gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.4);
                 oscillator.start(audioContext.currentTime);
@@ -157,10 +282,11 @@ export default function PublicAttendance() {
         } catch (e) { console.warn('Audio playback failed:', e); }
     };
 
-    const resetScanner = () => {
+    const resetState = () => {
         setResult(null);
+        setManualId("");
+        setValidationError("");
         lastScannedRef.current = null;
-        // Focus will be restored automatically by the useEffect
     };
 
     const getProfileImage = (student) => {
@@ -170,12 +296,12 @@ export default function PublicAttendance() {
 
     return (
         <KioskLayout>
-            {/* Hidden input for USB hardware scanner */}
+            {/* Hidden input for USB hardware scanner — always active in background */}
             <input
                 ref={hiddenInputRef}
                 type="text"
                 className="opacity-0 absolute -z-10 w-0 h-0"
-                onKeyDown={handleKeyDown}
+                onKeyDown={handleScannerKeyDown}
                 autoFocus
                 tabIndex={-1}
                 aria-hidden="true"
@@ -186,115 +312,274 @@ export default function PublicAttendance() {
                 <motion.div
                     initial={{ opacity: 0, y: -20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="text-center mb-12"
+                    className="text-center mb-10"
                 >
                     <div className="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-br from-blue-600/30 to-indigo-600/30 rounded-full shadow-[0_0_40px_rgba(37,99,235,0.3)] mb-6 border border-white/10 backdrop-blur-md">
                         <ScanLine className="text-blue-400" size={48} />
                     </div>
                     <h1 className="text-4xl md:text-5xl font-black text-white mb-3 tracking-tight">Attendance Log</h1>
                     <p className="text-blue-200 text-lg max-w-lg mx-auto leading-relaxed">
-                        Present your Library ID Code to the scanner below to check in.
+                        Scan your QR code or enter your Student ID to check in.
                     </p>
                 </motion.div>
 
-                {/* Scanner / Result Area */}
+                {/* Unified Attendance Card */}
                 <GlassCard className="max-w-md w-full mx-auto relative group">
-                    {/* Decorative Glow */}
+                    {/* Decorative Glow Lines */}
                     <div className="absolute inset-x-0 -top-px h-px bg-gradient-to-r from-transparent via-blue-500/50 to-transparent" />
                     <div className="absolute inset-x-0 -bottom-px h-px bg-gradient-to-r from-transparent via-blue-500/50 to-transparent" />
 
-                    <div className="relative p-1">
-                        {/* Static Scanner Ready Graphic */}
-                        <div className={`p-0 rounded-[2rem] overflow-hidden bg-gradient-to-br from-slate-900 to-slate-800 relative ${result ? 'invisible' : ''} shadow-2xl border-4 border-slate-800`}>
-                            <div className="w-full aspect-square flex flex-col items-center justify-center relative">
-                                {/* Decorative grid background */}
-                                <div className="absolute inset-0 opacity-[0.03]"
-                                    style={{
-                                        backgroundImage: 'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)',
-                                        backgroundSize: '30px 30px'
-                                    }}
-                                />
+                    <div className="relative p-1" style={{ minHeight: "540px" }}>
 
-                                {/* Corner Brackets */}
-                                <div className="absolute top-6 left-6 w-16 h-16 border-t-[3px] border-l-[3px] border-blue-500/40 rounded-tl-2xl" />
-                                <div className="absolute top-6 right-6 w-16 h-16 border-t-[3px] border-r-[3px] border-blue-500/40 rounded-tr-2xl" />
-                                <div className="absolute bottom-6 left-6 w-16 h-16 border-b-[3px] border-l-[3px] border-blue-500/40 rounded-bl-2xl" />
-                                <div className="absolute bottom-6 right-6 w-16 h-16 border-b-[3px] border-r-[3px] border-blue-500/40 rounded-br-2xl" />
+                        {/* ============ MAIN CONTENT (visible when no result) ============ */}
+                        {!result && (
+                            <div className="p-6 rounded-[1.8rem] bg-gradient-to-br from-slate-900 to-slate-800 border-4 border-slate-800 shadow-2xl relative">
 
-                                {/* Sweeping line */}
-                                {!isLoading && !result && (
-                                    <div className="absolute left-8 right-8 h-0.5 bg-gradient-to-r from-transparent via-cyan-400/50 to-transparent shadow-[0_0_15px_rgba(34,211,238,0.4)] animate-scanner-sweep" />
-                                )}
+                                {/* --- QR Scanner Status Indicator --- */}
+                                <motion.div
+                                    initial={{ opacity: 0, y: -10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ delay: 0.1 }}
+                                    className={`flex items-center justify-between p-4 rounded-2xl border transition-all duration-500 mb-6 ${
+                                        scannerFlash
+                                            ? "bg-blue-500/20 border-blue-500/40 shadow-[0_0_20px_rgba(59,130,246,0.3)]"
+                                            : "bg-white/[0.03] border-white/[0.06]"
+                                    }`}
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div className="relative">
+                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-500 ${
+                                                scannerFlash
+                                                    ? "bg-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.4)]"
+                                                    : "bg-white/5"
+                                            }`}>
+                                                <ScanLine size={20} className={`transition-colors duration-300 ${scannerFlash ? "text-blue-300" : "text-slate-400"}`} />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-bold text-white leading-tight">QR / Barcode Scanner</p>
+                                            <p className="text-xs text-slate-500 leading-tight mt-0.5">Hardware scanner is always ready</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-2 h-2 rounded-full bg-emerald-400 animate-scanner-dot" />
+                                        <span className="text-emerald-400 text-[10px] font-bold uppercase tracking-widest">Active</span>
+                                    </div>
+                                </motion.div>
 
-                                {/* Pulsing icon */}
-                                <div className="animate-gentle-pulse relative z-10">
-                                    <div className="w-28 h-28 rounded-full bg-blue-500/10 border border-blue-500/20 flex items-center justify-center shadow-[0_0_60px_rgba(59,130,246,0.15)]">
-                                        <ScanLine className="text-blue-400" size={56} />
+                                {/* --- OR Divider --- */}
+                                <div className="flex items-center gap-4 mb-6">
+                                    <div className="flex-1 h-px bg-gradient-to-r from-transparent to-white/10" />
+                                    <span className="text-slate-500 text-xs font-bold uppercase tracking-[0.2em] px-2">or enter manually</span>
+                                    <div className="flex-1 h-px bg-gradient-to-l from-transparent to-white/10" />
+                                </div>
+
+                                {/* --- Manual Student ID Input --- */}
+                                <div className="mb-6" data-manual-input-area>
+                                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-[0.15em] mb-3">
+                                        Student ID Number
+                                    </label>
+                                    <div className="relative group/input">
+                                        {/* Input Glow */}
+                                        <div className={`absolute -inset-0.5 rounded-2xl transition-all duration-500 ${
+                                            manualId.length >= 3
+                                                ? "bg-gradient-to-r from-blue-600/40 to-indigo-600/40 blur-sm opacity-100"
+                                                : "bg-transparent opacity-0"
+                                        }`} />
+
+                                        <div className="relative flex items-center bg-slate-800/80 border-2 border-white/10 rounded-2xl overflow-hidden transition-all duration-300 focus-within:border-blue-500/50 group-hover/input:border-white/20">
+                                            <div className="flex items-center justify-center w-14 h-14 border-r border-white/5">
+                                                <Hash size={20} className="text-blue-400" />
+                                            </div>
+                                            <input
+                                                ref={manualInputRef}
+                                                type="text"
+                                                value={manualId}
+                                                onChange={(e) => {
+                                                    setManualId(e.target.value);
+                                                    setValidationError("");
+                                                }}
+                                                onKeyDown={handleManualKeyDown}
+                                                placeholder="e.g. 2024-00123"
+                                                disabled={isLoading}
+                                                className="flex-1 bg-transparent text-white text-xl font-bold tracking-wider px-4 py-4 h-14 placeholder:text-slate-600 placeholder:font-normal placeholder:tracking-normal focus:outline-none disabled:opacity-50"
+                                                autoComplete="off"
+                                            />
+                                            {manualId && !isLoading && (
+                                                <motion.button
+                                                    initial={{ scale: 0 }}
+                                                    animate={{ scale: 1 }}
+                                                    onClick={() => { setManualId(""); setValidationError(""); }}
+                                                    className="flex items-center justify-center w-10 h-10 mr-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-all"
+                                                >
+                                                    <XCircle size={18} />
+                                                </motion.button>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Validation Error */}
+                                    <AnimatePresence>
+                                        {validationError && (
+                                            <motion.div
+                                                initial={{ opacity: 0, y: -5 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                exit={{ opacity: 0, y: -5 }}
+                                                className="flex items-center gap-2 mt-3 text-red-400 text-sm font-medium"
+                                            >
+                                                <AlertCircle size={14} />
+                                                <span>{validationError}</span>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+
+                                    {/* Character Counter */}
+                                    <div className="flex items-center justify-between mt-3">
+                                        <p className="text-slate-600 text-xs">
+                                            {manualId.length > 0
+                                                ? <span className={manualId.length >= 3 ? "text-emerald-400" : "text-amber-400"}>{manualId.length} characters entered</span>
+                                                : "Use the numpad or keyboard to type"
+                                            }
+                                        </p>
+                                        {manualId.length > 0 && manualId.length < 3 && (
+                                            <span className="text-amber-400/60 text-xs font-medium">Min 3 chars</span>
+                                        )}
                                     </div>
                                 </div>
 
-                                <p className="mt-6 text-slate-300 text-base font-semibold tracking-wide relative z-10">Ready to Scan</p>
-                                <p className="mt-2 text-slate-500 text-sm max-w-[250px] text-center relative z-10">
-                                    Please tap your ID on the scanner below.
-                                </p>
+                                {/* --- Numpad Divider --- */}
+                                <div className="flex items-center gap-4 mb-5">
+                                    <div className="flex-1 h-px bg-gradient-to-r from-transparent to-white/10" />
+                                    <span className="text-slate-600 text-[10px] font-bold uppercase tracking-[0.2em]">On-Screen Numpad</span>
+                                    <div className="flex-1 h-px bg-gradient-to-l from-transparent to-white/10" />
+                                </div>
 
-                                {/* Loading Overlay */}
-                                {isLoading && (
-                                    <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center backdrop-blur-sm rounded-[1.5rem] z-20">
-                                        <Loader2 className="w-12 h-12 animate-spin text-blue-500 mb-3" />
-                                        <p className="text-blue-400 font-mono text-xs uppercase tracking-[0.2em] animate-pulse">Processing...</p>
-                                    </div>
-                                )}
+                                {/* --- Numpad --- */}
+                                <Numpad
+                                    onInput={handleNumpadInput}
+                                    onBackspace={handleNumpadBackspace}
+                                    onSubmit={handleManualSubmit}
+                                    disabled={isLoading}
+                                    inputLength={manualId.trim().length}
+                                />
+
+                                {/* --- Loading Overlay --- */}
+                                <AnimatePresence>
+                                    {isLoading && (
+                                        <motion.div
+                                            initial={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
+                                            exit={{ opacity: 0 }}
+                                            transition={{ duration: 0.2 }}
+                                            className="absolute inset-0 bg-slate-900/95 flex flex-col items-center justify-center backdrop-blur-md rounded-[1.8rem] z-20"
+                                        >
+                                            <motion.div
+                                                initial={{ scale: 0.8 }}
+                                                animate={{ scale: 1 }}
+                                                transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                                                className="flex flex-col items-center"
+                                            >
+                                                <div className="w-20 h-20 rounded-full bg-blue-500/10 border border-blue-500/20 flex items-center justify-center mb-5 shadow-[0_0_40px_rgba(59,130,246,0.2)]">
+                                                    <Loader2 className="w-10 h-10 animate-spin text-blue-500" />
+                                                </div>
+                                                <p className="text-white font-bold text-lg mb-1">Verifying Student ID</p>
+                                                <p className="text-blue-400 font-mono text-xs uppercase tracking-[0.2em] animate-pulse">Please wait...</p>
+                                            </motion.div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
                             </div>
-                        </div>
+                        )}
 
-                        {/* Result Overlay */}
+                        {/* ============ RESULT OVERLAY ============ */}
                         <AnimatePresence>
                             {result && (
                                 <motion.div
-                                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                                    className="absolute inset-0 z-30 bg-slate-900/95 backdrop-blur-xl flex flex-col items-center justify-center p-8 rounded-[1.8rem]"
+                                    key="result"
+                                    initial={{ opacity: 0, scale: 0.95 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    exit={{ opacity: 0, scale: 0.95 }}
+                                    transition={{ duration: 0.3, ease: "easeOut" }}
+                                    className="rounded-[1.8rem] bg-gradient-to-br from-slate-900 to-slate-800 border-4 border-slate-800 shadow-2xl"
+                                    style={{ minHeight: "530px" }}
                                 >
-                                    {result.success ? (
-                                        <div className="text-center w-full">
-                                            <motion.div
-                                                initial={{ scale: 0 }} animate={{ scale: 1 }}
-                                                className="w-20 h-20 rounded-full bg-green-500/20 flex items-center justify-center mx-auto mb-6"
-                                            >
-                                                <CheckCircle className="text-green-400" size={48} />
-                                            </motion.div>
+                                    <div className="flex flex-col items-center justify-center p-8 h-full" style={{ minHeight: "530px" }}>
+                                        {result.success ? (
+                                            <div className="text-center w-full">
+                                                <motion.div
+                                                    initial={{ scale: 0 }}
+                                                    animate={{ scale: 1 }}
+                                                    transition={{ type: "spring", stiffness: 300, damping: 15, delay: 0.1 }}
+                                                    className="w-20 h-20 rounded-full bg-green-500/20 flex items-center justify-center mx-auto mb-5"
+                                                >
+                                                    <CheckCircle className="text-green-400" size={48} />
+                                                </motion.div>
 
-                                            <img src={getProfileImage(result.student)} alt="Profile" className="w-24 h-24 rounded-full mx-auto mb-4 object-cover border-4 border-green-500/30 shadow-2xl" />
+                                                <motion.img
+                                                    initial={{ opacity: 0, y: 10 }}
+                                                    animate={{ opacity: 1, y: 0 }}
+                                                    transition={{ delay: 0.2 }}
+                                                    src={getProfileImage(result.student)}
+                                                    alt="Profile"
+                                                    className="w-24 h-24 rounded-full mx-auto mb-4 object-cover border-4 border-green-500/30 shadow-2xl"
+                                                />
 
-                                            <h2 className="text-2xl font-bold text-white mb-1">{result.student?.name}</h2>
-                                            <div className="inline-block bg-white/10 px-3 py-1 rounded-full mb-6">
-                                                <p className="text-slate-300 font-mono text-xs tracking-widest">{result.student?.student_id}</p>
+                                                <motion.div
+                                                    initial={{ opacity: 0, y: 10 }}
+                                                    animate={{ opacity: 1, y: 0 }}
+                                                    transition={{ delay: 0.25 }}
+                                                >
+                                                    <h2 className="text-2xl font-bold text-white mb-1">{result.student?.name}</h2>
+                                                    <div className="inline-block bg-white/10 px-3 py-1 rounded-full mb-5">
+                                                        <p className="text-slate-300 font-mono text-xs tracking-widest">{result.student?.student_id}</p>
+                                                    </div>
+                                                </motion.div>
+
+                                                <motion.div
+                                                    initial={{ opacity: 0, y: 10 }}
+                                                    animate={{ opacity: 1, y: 0 }}
+                                                    transition={{ delay: 0.3 }}
+                                                    className="bg-green-500/10 border border-green-500/20 rounded-xl px-6 py-3"
+                                                >
+                                                    <p className="text-green-400 font-bold text-sm tracking-wide uppercase">✓ Logged at {result.logged_at}</p>
+                                                </motion.div>
                                             </div>
-
-                                            <div className="bg-green-500/10 border border-green-500/20 rounded-xl px-6 py-3">
-                                                <p className="text-green-400 font-bold text-sm tracking-wide uppercase">✓ Logged at {result.logged_at}</p>
+                                        ) : (
+                                            <div className="text-center w-full">
+                                                <motion.div
+                                                    initial={{ scale: 0 }}
+                                                    animate={{ scale: 1 }}
+                                                    transition={{ type: "spring", stiffness: 300, damping: 15 }}
+                                                >
+                                                    <XCircle className="text-amber-500 mx-auto mb-6" size={64} />
+                                                </motion.div>
+                                                <motion.div
+                                                    initial={{ opacity: 0, y: 10 }}
+                                                    animate={{ opacity: 1, y: 0 }}
+                                                    transition={{ delay: 0.15 }}
+                                                >
+                                                    <h2 className="text-xl font-bold text-white mb-2">{result.message}</h2>
+                                                    {result.student && (
+                                                        <div className="bg-white/5 rounded-xl p-4 mt-4">
+                                                            <p className="text-slate-300 font-medium">{result.student.name}</p>
+                                                        </div>
+                                                    )}
+                                                </motion.div>
                                             </div>
-                                        </div>
-                                    ) : (
-                                        <div className="text-center w-full">
-                                            <XCircle className="text-amber-500 mx-auto mb-6" size={64} />
-                                            <h2 className="text-xl font-bold text-white mb-2">{result.message}</h2>
-                                            {result.student && (
-                                                <div className="bg-white/5 rounded-xl p-4 mt-4">
-                                                    <p className="text-slate-300 font-medium">{result.student.name}</p>
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
+                                        )}
 
-                                    <div className="mt-auto w-full pt-8">
-                                        <div className="h-1 w-full bg-white/10 rounded-full overflow-hidden">
-                                            <motion.div
-                                                initial={{ width: "100%" }} animate={{ width: "0%" }} transition={{ duration: 3, ease: "linear" }}
-                                                className="h-full bg-blue-500"
-                                            />
+                                        {/* Progress bar & auto-reset countdown */}
+                                        <div className="mt-auto w-full pt-6">
+                                            <div className="h-1 w-full bg-white/10 rounded-full overflow-hidden">
+                                                <motion.div
+                                                    initial={{ width: "100%" }}
+                                                    animate={{ width: "0%" }}
+                                                    transition={{ duration: 3, ease: "linear" }}
+                                                    className="h-full bg-blue-500 rounded-full"
+                                                />
+                                            </div>
+                                            <p className="text-center text-slate-500 text-xs mt-3 font-mono">Auto-resetting...</p>
                                         </div>
-                                        <p className="text-center text-slate-500 text-xs mt-3 font-mono">Auto-resetting...</p>
                                     </div>
                                 </motion.div>
                             )}

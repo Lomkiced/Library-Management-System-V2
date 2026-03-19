@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import axiosClient from "../axios-client";
-import { X, CheckCircle, Save, User, Hash, GraduationCap, Calendar, Mail, Phone, Layers } from "lucide-react";
+import { X, CheckCircle, Save, User, Hash, GraduationCap, Calendar, Mail, Phone, Layers, AlertCircle, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "../components/ui/Toast";
 import FloatingInput from "../components/ui/FloatingInput";
@@ -20,6 +20,12 @@ export default function StudentFormModal({ studentToEdit = null, onClose, onSucc
         section: ""
     });
 
+    // Student ID duplicate detection states
+    const [studentIdError, setStudentIdError] = useState("");
+    const [checkingStudentId, setCheckingStudentId] = useState(false);
+    const [studentIdValid, setStudentIdValid] = useState(false);
+    const debounceTimerRef = useRef(null);
+
     useEffect(() => {
         if (studentToEdit) {
             setFormData({
@@ -34,8 +40,71 @@ export default function StudentFormModal({ studentToEdit = null, onClose, onSucc
         }
     }, [studentToEdit]);
 
+    // Debounced student ID duplicate check
+    const checkStudentIdDuplicate = useCallback((value) => {
+        if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+
+        // Reset states if empty
+        if (!value || value.trim() === "") {
+            setStudentIdError("");
+            setStudentIdValid(false);
+            setCheckingStudentId(false);
+            return;
+        }
+
+        // If editing and value is the same as original, skip check
+        if (studentToEdit && value === studentToEdit.student_id) {
+            setStudentIdError("");
+            setStudentIdValid(true);
+            setCheckingStudentId(false);
+            return;
+        }
+
+        setCheckingStudentId(true);
+        setStudentIdValid(false);
+
+        debounceTimerRef.current = setTimeout(() => {
+            axiosClient.get(`/students/lookup/${encodeURIComponent(value)}`)
+                .then(({ data }) => {
+                    if (data.found) {
+                        setStudentIdError("This Student ID is already registered");
+                        setStudentIdValid(false);
+                    } else {
+                        setStudentIdError("");
+                        setStudentIdValid(true);
+                    }
+                })
+                .catch(() => {
+                    // On error, don't block — just clear
+                    setStudentIdError("");
+                    setStudentIdValid(false);
+                })
+                .finally(() => setCheckingStudentId(false));
+        }, 500);
+    }, [studentToEdit]);
+
+    // Cleanup debounce timer on unmount
+    useEffect(() => {
+        return () => {
+            if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+        };
+    }, []);
+
+    const handleStudentIdChange = (e) => {
+        const value = e.target.value;
+        setFormData({ ...formData, student_id: value });
+        checkStudentIdDuplicate(value);
+    };
+
     const handleSubmit = (e) => {
         e.preventDefault();
+
+        // Block submission if student ID has a duplicate error
+        if (studentIdError) {
+            toast.error("Please resolve the Student ID conflict before submitting.");
+            return;
+        }
+
         setLoading(true);
 
         const payload = {
@@ -122,16 +191,35 @@ export default function StudentFormModal({ studentToEdit = null, onClose, onSucc
                                             placeholder="e.g. Juan A. Dela Cruz"
                                         />
                                     </div>
+                                    <div className="relative">
+                                        <FloatingInput
+                                            label="Student ID"
+                                            value={formData.student_id}
+                                            onChange={handleStudentIdChange}
+                                            required
+                                            icon={Hash}
+                                            placeholder="e.g. 2023-00123"
+                                            error={studentIdError}
+                                        />
+                                        {/* Real-time status indicator */}
+                                        {formData.student_id && (
+                                            <div className="absolute right-4 top-5 z-10">
+                                                {checkingStudentId ? (
+                                                    <Loader2 size={18} className="animate-spin text-blue-500" />
+                                                ) : studentIdError ? (
+                                                    <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 500 }}>
+                                                        <AlertCircle size={18} className="text-red-500" />
+                                                    </motion.div>
+                                                ) : studentIdValid ? (
+                                                    <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 500 }}>
+                                                        <CheckCircle size={18} className="text-emerald-500" />
+                                                    </motion.div>
+                                                ) : null}
+                                            </div>
+                                        )}
+                                    </div>
                                     <FloatingInput
-                                        label="Student ID"
-                                        value={formData.student_id}
-                                        onChange={(e) => setFormData({ ...formData, student_id: e.target.value })}
-                                        required
-                                        icon={Hash}
-                                        placeholder="e.g. 2023-00123"
-                                    />
-                                    <FloatingInput
-                                        label="Email Address"
+                                        label="Email Address (Optional)"
                                         type="email"
                                         value={formData.email}
                                         onChange={(e) => setFormData({ ...formData, email: e.target.value })}
@@ -214,7 +302,7 @@ export default function StudentFormModal({ studentToEdit = null, onClose, onSucc
                         <Button
                             type="submit"
                             form="student-form"
-                            disabled={loading}
+                            disabled={loading || !!studentIdError || checkingStudentId}
                             isLoading={loading}
                             icon={Save}
                             className="px-8"

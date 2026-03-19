@@ -544,7 +544,7 @@ export default function Students() {
                         </td>
                         <td className="p-5">
                           <div className="flex items-center gap-4">
-                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-white text-lg font-bold bg-gradient-to-br ${colors.gradient} shadow-md`}>
+                            <div className={`w-12 h-12 rounded-full shrink-0 flex items-center justify-center text-white text-lg font-bold bg-gradient-to-br ${colors.gradient} shadow-md`}>
                               {student.name.charAt(0)}
                             </div>
                             <div>

@@ -76,6 +76,14 @@ class StudentController extends Controller
 
         $existingUser = User::withTrashed()->where('student_id', $studentId)->first();
 
+        // Block duplicate student_id for NEW registrations (non-trashed existing user)
+        if ($existingUser && !$existingUser->trashed()) {
+            return response()->json([
+                'message' => 'This Student ID is already registered.',
+                'duplicate' => true
+            ], 422);
+        }
+
         // Check email uniqueness if email is provided (exclude soft-deleted users)
         if ($email) {
             $emailQuery = User::whereNull('deleted_at')->where('email', $email);

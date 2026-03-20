@@ -29,6 +29,9 @@ echo "  ✓ MySQL is ready!"
 # ── Generate APP_KEY if not set ───────────────
 if [ -z "$APP_KEY" ] || [ "$APP_KEY" = "base64:" ]; then
     echo "[2/6] Generating application key..."
+    if [ ! -f ".env" ] && [ -f ".env.example" ]; then
+        cp .env.example .env
+    fi
     php artisan key:generate --force
 else
     echo "[2/6] Application key already set."

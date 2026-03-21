@@ -31,15 +31,15 @@ class AttendanceController extends Controller
             ], 404);
         }
 
-        // Check for duplicate within 1 minute
+        // Check for duplicate within today
         $recentLog = AttendanceLog::where('user_id', $student->id)
-            ->where('logged_at', '>=', Carbon::now()->subMinute())
+            ->whereDate('logged_at', Carbon::today())
             ->first();
 
         if ($recentLog) {
             return response()->json([
                 'success' => false,
-                'message' => 'Already logged! Please wait before scanning again.',
+                'message' => 'Attendance already recorded for today.',
                 'student' => [
                     'name' => $student->name,
                     'student_id' => $student->student_id,

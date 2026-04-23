@@ -6,6 +6,7 @@ import {
   User
 } from "lucide-react";
 import { memo, useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import axiosClient from "../axios-client";
 import ForgotPasswordModal from "../components/ForgotPasswordModal";
 import LoginTransition from "../components/LoginTransition";
@@ -70,6 +71,7 @@ const AnimatedBackground = memo(() => (
 AnimatedBackground.displayName = 'AnimatedBackground';
 
 export default function Login() {
+  const navigate = useNavigate();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState(null);
@@ -118,7 +120,7 @@ export default function Login() {
       });
   }, [username, password, validateForm]);
 
-  const handleStudentAccess = () => window.location.href = '/catalog';
+  const handleStudentAccess = () => navigate('/catalog');
   const handleTransitionFinish = () => window.location.reload();
 
   return (

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import Login from "./views/Login";
 import Books from "./views/Books";
 import Circulation from "./views/Circulation";
@@ -25,8 +26,7 @@ import PublicAttendance from "./views/PublicAttendance";
 import PrintLibraryCard from "./views/PrintLibraryCard";
 
 // Helper: normalize pathname by stripping the /app prefix (Docker serves SPA at /app/)
-function getAppPath() {
-  const path = window.location.pathname;
+function getAppPath(path) {
   // Strip /app prefix if present (Docker), otherwise use as-is (dev)
   if (path.startsWith('/app/')) return path.replace(/^\/app/, '');
   if (path === '/app') return '/';
@@ -34,7 +34,8 @@ function getAppPath() {
 }
 
 export default function App() {
-  const appPath = getAppPath();
+  const location = useLocation();
+  const appPath = getAppPath(location.pathname);
 
   // PUBLIC KIOSK ROUTE - Bypass Auth
   if (appPath === '/catalog') {

@@ -14,7 +14,7 @@ class PublicBookController extends Controller
      */
     public function index(Request $request)
     {
-        $limit = $request->query('limit', 12);
+        $limit = $request->query('limit', 30);
         $search = $request->query('search');
         $category = $request->query('category');
 
@@ -84,11 +84,16 @@ class PublicBookController extends Controller
      */
     public function categories()
     {
-        $categories = BookTitle::select('category')
-            ->selectRaw('count(*) as count')
-            ->groupBy('category')
-            ->orderBy('count', 'desc')
-            ->get();
+        $categories = \Illuminate\Support\Facades\Cache::remember('public_catalog_categories', 3600, function () {
+            return BookTitle::whereHas('assets', function ($q) {
+                    $q->whereIn('status', ['available', 'borrowed', 'damaged']);
+                })
+                ->select('category')
+                ->selectRaw('count(*) as count')
+                ->groupBy('category')
+                ->orderBy('count', 'desc')
+                ->get();
+        });
 
         return response()->json($categories);
     }

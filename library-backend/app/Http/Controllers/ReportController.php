@@ -50,25 +50,54 @@ class ReportController extends Controller
     }
 
     /**
-     * Get Top Students (Borrowers) Report
-     * 
-     * @param Request $request - Optional: start_date, end_date
+     * Get Top Students (Borrowers) Report — All-Time Leaderboard
+     *
+     * Returns lifetime rankings with rich per-student analytics.
+     * Date filters only apply when explicitly provided; by default this
+     * is an all-time ranking (Top Students = lifetime achievers).
+     *
+     * @param Request $request  page, per_page, search
      * @return \Illuminate\Http\JsonResponse
      */
-    /**
-     * Get Top Students (Borrowers) Report
-     * 
-     * @param Request $request - Optional: start_date, end_date
-     * @return \Illuminate\Http\JsonResponse
-     */
-    public function topStudents(Request $request) 
+    public function topStudents(Request $request)
     {
-        $startDate = $request->has('start_date') ? Carbon::parse($request->start_date)->startOfDay() : null;
-        $endDate = $request->has('end_date') ? Carbon::parse($request->end_date)->endOfDay() : null;
-        $search = $request->input('search');
+        $search  = $request->input('search', '');
+        $perPage = (int) $request->input('per_page', 10);
+        $page    = (int) $request->input('page', 1);
 
-        // Base Query: Get all students with their borrow counts
-        $query = Transaction::query()
+        // ── 1. AGGREGATE SUMMARY STATS (always all-time) ────────────────────
+        $totalActiveReaders = Transaction::join('users', 'transactions.user_id', '=', 'users.id')
+            ->whereNull('users.deleted_at')
+            ->where('users.role', 'student')
+            ->distinct('transactions.user_id')
+            ->count('transactions.user_id');
+
+        $totalBooksCirculated = Transaction::join('users', 'transactions.user_id', '=', 'users.id')
+            ->whereNull('users.deleted_at')
+            ->where('users.role', 'student')
+            ->count();
+
+        $avgBooksPerStudent = $totalActiveReaders > 0
+            ? round($totalBooksCirculated / $totalActiveReaders, 1)
+            : 0;
+
+        // Most popular category across all student borrows
+        $mostPopularCategoryRow = Transaction::join('users', 'transactions.user_id', '=', 'users.id')
+            ->join('book_assets', 'transactions.book_asset_id', '=', 'book_assets.id')
+            ->join('book_titles', 'book_assets.book_title_id', '=', 'book_titles.id')
+            ->whereNull('users.deleted_at')
+            ->where('users.role', 'student')
+            ->whereNull('book_assets.deleted_at')
+            ->whereNull('book_titles.deleted_at')
+            ->select('book_titles.category', DB::raw('COUNT(*) as cnt'))
+            ->groupBy('book_titles.category')
+            ->orderByDesc('cnt')
+            ->first();
+
+        $mostPopularCategory = $mostPopularCategoryRow?->category ?? 'N/A';
+
+        // ── 2. CORE RANKING QUERY (all-time) ────────────────────────────────
+        $rankingQuery = Transaction::query()
             ->join('users', 'transactions.user_id', '=', 'users.id')
             ->whereNull('users.deleted_at')
             ->where('users.role', 'student')
@@ -80,57 +109,96 @@ class ReportController extends Controller
                 'users.year_level',
                 'users.section',
                 'users.profile_picture',
-                DB::raw('COUNT(transactions.id) as borrow_count'),
-                DB::raw('SUM(CASE WHEN transactions.returned_at IS NULL THEN 1 ELSE 0 END) as active_loans')
+                DB::raw('COUNT(transactions.id)                                              AS borrow_count'),
+                DB::raw('SUM(CASE WHEN transactions.returned_at IS NOT NULL THEN 1 ELSE 0 END) AS books_returned'),
+                DB::raw('SUM(CASE WHEN transactions.returned_at IS NULL     THEN 1 ELSE 0 END) AS active_loans'),
+                DB::raw('SUM(CASE WHEN transactions.returned_at IS NOT NULL
+                                   AND (transactions.penalty_amount IS NULL
+                                        OR transactions.penalty_amount = 0)
+                              THEN 1 ELSE 0 END)                                             AS on_time_returns'),
+                DB::raw('MAX(transactions.borrowed_at)                                       AS last_borrowed_at')
             )
-            ->groupBy('users.id', 'users.name', 'users.student_id', 'users.course', 'users.year_level', 'users.section', 'users.profile_picture');
+            ->groupBy(
+                'users.id', 'users.name', 'users.student_id',
+                'users.course', 'users.year_level', 'users.section', 'users.profile_picture'
+            )
+            ->orderByDesc('borrow_count');
 
-        if ($startDate) {
-            $query->where('transactions.borrowed_at', '>=', $startDate);
+        // Apply optional search filter at DB level for efficiency
+        if ($search) {
+            $rankingQuery->where(function ($q) use ($search) {
+                $q->where('users.name', 'LIKE', "%{$search}%")
+                  ->orWhere('users.student_id', 'LIKE', "%{$search}%");
+            });
         }
-        if ($endDate) {
-            $query->where('transactions.borrowed_at', '<=', $endDate);
-        }
 
-        // Fetch results with a safety ceiling of 500 rows to prevent memory exhaustion
-        $allResults = $query->orderByDesc('borrow_count')->limit(500)->get();
+        // Fetch top 500 to assign ranks in-memory (avoids subquery rank complications)
+        $allResults = $rankingQuery->limit(500)->get();
 
-        // Assign Ranks and Transform to Collection
-        $rankedStudents = $allResults->map(function ($student, $index) {
-            $student->rank = $index + 1;
+        // ── 3. ASSIGN RANKS ─────────────────────────────────────────────────
+        $allResults = $allResults->values()->map(function ($student, $index) {
+            $student->rank         = $index + 1;
+            $student->return_rate  = $student->borrow_count > 0
+                ? round(($student->books_returned / $student->borrow_count) * 100)
+                : 0;
             return $student;
         });
 
-        // Apply Search Filter if present
-        if ($search) {
-            $filtered = $rankedStudents->filter(function ($student) use ($search) {
-                return stripos($student->name, $search) !== false || stripos($student->student_id, $search) !== false;
+        // ── 4. BULK-LOAD FAVORITE CATEGORY (2 queries for all students) ─────
+        $studentIds = $allResults->pluck('id')->toArray();
+
+        if (!empty($studentIds)) {
+            $favCategories = Transaction::join('users', 'transactions.user_id', '=', 'users.id')
+                ->join('book_assets', 'transactions.book_asset_id', '=', 'book_assets.id')
+                ->join('book_titles', 'book_assets.book_title_id', '=', 'book_titles.id')
+                ->whereIn('transactions.user_id', $studentIds)
+                ->whereNull('book_assets.deleted_at')
+                ->whereNull('book_titles.deleted_at')
+                ->select(
+                    'transactions.user_id',
+                    'book_titles.category',
+                    DB::raw('COUNT(*) as cat_count')
+                )
+                ->groupBy('transactions.user_id', 'book_titles.category')
+                ->orderByDesc('cat_count')
+                ->get()
+                ->groupBy('user_id')
+                ->map(fn($rows) => $rows->first()?->category ?? 'General');
+
+            // Bulk-load reading streak (distinct active months)
+            $readingStreaks = Transaction::whereIn('user_id', $studentIds)
+                ->select(
+                    'user_id',
+                    DB::raw('COUNT(DISTINCT DATE_FORMAT(borrowed_at, "%Y-%m")) AS streak')
+                )
+                ->groupBy('user_id')
+                ->pluck('streak', 'user_id');
+
+            $allResults = $allResults->map(function ($student) use ($favCategories, $readingStreaks) {
+                $student->favorite_category = $favCategories[$student->id] ?? 'General';
+                $student->reading_streak    = (int) ($readingStreaks[$student->id] ?? 0);
+                return $student;
             });
-            
-            // Manual Pagination for Search Results
-            $perPage = $request->input('per_page', 10);
-            $page = $request->input('page', 1);
-            $total = $filtered->count();
-            
-            $results = new \Illuminate\Pagination\LengthAwarePaginator(
-                $filtered->forPage($page, $perPage)->values(),
-                $total,
-                $perPage,
-                $page,
-                ['path' => $request->url(), 'query' => $request->query()]
-            );
-            
-            return response()->json($results);
         }
 
-        // Default: Top 3 only
-        // Return structured data compatible with frontend expectations
+        // ── 5. PAGINATE IN MEMORY ────────────────────────────────────────────
+        $total   = $allResults->count();
+        $paged   = $allResults->forPage($page, $perPage)->values();
+
         return response()->json([
-            'data' => $rankedStudents->take(3)->values(),
-            'current_page' => 1,
-            'last_page' => 1,
-            'total' => 3,
-            'per_page' => 3
+            // Leaderboard page
+            'data'         => $paged,
+            'current_page' => $page,
+            'last_page'    => (int) ceil($total / $perPage),
+            'total'        => $total,
+            'per_page'     => $perPage,
+            // Aggregate summary for dashboard banner cards
+            'summary'      => [
+                'total_active_readers'   => $totalActiveReaders,
+                'total_books_circulated' => $totalBooksCirculated,
+                'avg_books_per_student'  => $avgBooksPerStudent,
+                'most_popular_category'  => $mostPopularCategory,
+            ],
         ]);
     }
 

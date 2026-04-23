@@ -1,6 +1,6 @@
 import { Clock, Library, Menu, X } from "lucide-react";
 import { useEffect, useState } from "react";
-// import { Link, useLocation } from "react-router-dom"; // REMOVED: Using manual routing
+import { Link, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useLibrarySettings } from "../context/LibrarySettingsContext";
 
@@ -124,16 +124,11 @@ const LibrarianAvatar = () => {
 
 export default function KioskLayout({ children }) {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
-    // const location = useLocation(); // REMOVED
-    const currentPath = window.location.pathname; // Manual check
+    const location = useLocation();
+    const currentPath = location.pathname;
     const { libraryName } = useLibrarySettings();
 
-    // Mock User for Kiosk Demo
-    const user = {
-        name: "Student Guest",
-        avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Felix",
-        role: "Student"
-    };
+    // Mock User for Kiosk Demo removed
 
     return (
         <div className="min-h-screen font-sans flex flex-col relative overflow-x-hidden text-slate-200">
@@ -152,50 +147,43 @@ export default function KioskLayout({ children }) {
                     className="max-w-7xl mx-auto bg-slate-900/60 backdrop-blur-xl border border-white/10 rounded-full px-6 py-3 shadow-2xl flex items-center justify-between"
                 >
                     {/* Brand */}
-                    <a href="/" className="flex items-center gap-3 group">
+                    <Link to="/" className="flex items-center gap-3 group">
                         <div className="p-1 rounded-full group-hover:scale-105 transition-transform duration-300">
                             <img src="/pclu-logo.png" alt="Logo" className="w-10 h-10 object-contain drop-shadow-[0_0_10px_rgba(59,130,246,0.5)]" />
                         </div>
                         <div className="hidden md:block">
-                            <h1 className="text-lg font-bold leading-none text-white tracking-tight truncate max-w-[200px]" title={libraryName}>{libraryName}</h1>
+                            <h1 className="text-base lg:text-lg font-bold leading-tight text-white tracking-tight" title={libraryName}>{libraryName}</h1>
                             <p className="text-blue-300/70 text-[10px] font-bold tracking-widest uppercase">Student Kiosk</p>
                         </div>
-                    </a>
+                    </Link>
 
                     {/* Desktop Nav */}
                     <nav className="hidden md:flex items-center gap-2">
-                        <a
-                            href="/catalog"
+                        <Link
+                            to="/catalog"
                             className={`px-4 py-2 rounded-full text-sm font-bold transition-all ${currentPath === '/catalog'
                                 ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
                                 : 'text-slate-400 hover:text-white hover:bg-white/5'
                                 }`}
                         >
                             Catalog
-                        </a>
-                        <a
-                            href="/attendance"
+                        </Link>
+                        <Link
+                            to="/attendance"
                             className={`px-4 py-2 rounded-full text-sm font-bold transition-all ${currentPath === '/attendance'
                                 ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
                                 : 'text-slate-400 hover:text-white hover:bg-white/5'
                                 }`}
                         >
                             Attendance
-                        </a>
+                        </Link>
                     </nav>
 
                     {/* Right Actions */}
                     <div className="flex items-center gap-4">
                         <KioskClock />
 
-                        {/* User Profile Pill */}
-                        <div className="flex items-center gap-3 pl-4 border-l border-white/10">
-                            <div className="hidden sm:block text-right">
-                                <p className="text-sm font-bold text-white leading-none">{user.name}</p>
-                                <p className="text-[10px] text-emerald-400 font-medium uppercase tracking-wider">Online</p>
-                            </div>
-                            <img src={user.avatar} alt="Avatar" className="w-9 h-9 rounded-full border-2 border-blue-500/50 bg-slate-800" />
-                        </div>
+
 
                         {/* Mobile Menu Toggle */}
                         <button className="md:hidden text-white" onClick={() => setIsMenuOpen(!isMenuOpen)}>

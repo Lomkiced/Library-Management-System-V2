@@ -338,15 +338,15 @@ export default function Students() {
   };
 
   // Course Card Component
-  const CourseCard = ({ course, totalStudents, activeLoans }) => {
+  const CourseCard = ({ course, totalStudents, activeLoans, index = 0 }) => {
     const colors = getCourseColors(course);
     return (
       <motion.button
-        variants={itemVariants}
-        whileHover={{ scale: 1.02 }}
-        whileTap={{ scale: 0.98 }}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ type: "spring", stiffness: 300, damping: 24, delay: index * 0.05 }}
         onClick={() => handleCourseClick(course)}
-        className={`group relative overflow-hidden rounded-[2rem] p-7 text-left shadow-sm hover:shadow-2xl transition-shadow border border-white/40 dark:border-slate-700/50 backdrop-blur-md ${colors.bg} dark:bg-slate-800/80`}
+        className={`group relative overflow-hidden rounded-[2rem] p-7 text-left shadow-sm hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 border border-white/40 dark:border-slate-700/50 backdrop-blur-md ${colors.bg} dark:bg-slate-800/80`}
       >
         {/* Background gradient accent */}
         <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${colors.gradient} opacity-20 dark:opacity-30 rounded-full blur-3xl -translate-y-8 translate-x-8 group-hover:scale-150 transition-transform duration-700 ease-out`} />
@@ -443,12 +443,13 @@ export default function Students() {
               </motion.div>
             ) : (
               <motion.div key="grid" variants={containerVariants} initial="hidden" animate="show" className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                {courses.map((c) => (
+                {courses.map((c, index) => (
                   <CourseCard
                     key={c.course}
                     course={c.course}
                     totalStudents={c.total_students}
                     activeLoans={c.active_loans}
+                    index={index}
                   />
                 ))}
               </motion.div>

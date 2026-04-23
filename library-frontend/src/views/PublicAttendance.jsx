@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import KioskLayout from "./KioskLayout";
 import axiosClient from "../axios-client";
-import { CheckCircle, XCircle, Loader2, ScanLine, Delete, ArrowRight, Hash, AlertCircle, Wifi } from "lucide-react";
+import { CheckCircle, XCircle, Loader2, ScanLine, Delete, ArrowRight, Hash, AlertCircle, Wifi, ArrowUp, CornerDownLeft } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 // --- Glass Card Helper ---
@@ -11,71 +11,123 @@ const GlassCard = ({ children, className = "" }) => (
     </div>
 );
 
-// --- On-Screen Numpad Component ---
-const Numpad = ({ onInput, onBackspace, onSubmit, disabled, inputLength }) => {
-    const keys = [
-        ["1", "2", "3"],
-        ["4", "5", "6"],
-        ["7", "8", "9"],
-        ["-", "0", "⌫"],
+// --- Advanced Virtual Keyboard Component ---
+const VirtualKeyboard = ({ onInput, onBackspace, onSubmit, disabled, inputLength }) => {
+    const [mode, setMode] = useState("alpha"); // "alpha", "numeric", "symbol"
+    const [isShift, setIsShift] = useState(true); // Default uppercase for IDs
+
+    const alphaRows = [
+        ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"],
+        ["a", "s", "d", "f", "g", "h", "j", "k", "l"],
+        ["⇧", "z", "x", "c", "v", "b", "n", "m", "⌫"],
+        ["?123", "-", "space", "Submit"]
+    ];
+
+    const numericRows = [
+        ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"],
+        ["-", "/", ":", ";", "(", ")", "$", "&", "@", "\""],
+        ["#+=", ".", ",", "?", "!", "'", "⌫"],
+        ["ABC", "-", "space", "Submit"]
+    ];
+
+    const symbolRows = [
+        ["[", "]", "{", "}", "#", "%", "^", "*", "+", "="],
+        ["_", "\\", "|", "~", "<", ">", "€", "£", "¥", "•"],
+        ["?123", ".", ",", "?", "!", "'", "⌫"],
+        ["ABC", "-", "space", "Submit"]
     ];
 
     const handleKey = (key) => {
         if (disabled) return;
+        
         if (key === "⌫") {
             onBackspace();
+            if (navigator.vibrate) navigator.vibrate(40);
+        } else if (key === "⇧") {
+            setIsShift(!isShift);
+            if (navigator.vibrate) navigator.vibrate(30);
+        } else if (key === "?123") {
+            setMode("numeric");
+            if (navigator.vibrate) navigator.vibrate(30);
+        } else if (key === "ABC") {
+            setMode("alpha");
+            if (navigator.vibrate) navigator.vibrate(30);
+        } else if (key === "#+=") {
+            setMode("symbol");
+            if (navigator.vibrate) navigator.vibrate(30);
+        } else if (key === "space") {
+            onInput(" ");
+            if (navigator.vibrate) navigator.vibrate(30);
+        } else if (key === "Submit") {
+            onSubmit();
+            if (navigator.vibrate) navigator.vibrate(50);
         } else {
-            onInput(key);
+            const char = isShift && mode === "alpha" ? key.toUpperCase() : key;
+            onInput(char);
+            if (navigator.vibrate) navigator.vibrate(30);
         }
     };
 
-    return (
-        <div className="space-y-3">
-            <div className="grid grid-cols-3 gap-2.5">
-                {keys.flat().map((key, i) => (
-                    <motion.button
-                        key={i}
-                        whileTap={{ scale: 0.92 }}
-                        whileHover={{ scale: 1.04 }}
-                        onClick={() => handleKey(key)}
-                        disabled={disabled}
-                        className={`relative h-14 rounded-xl font-bold text-lg transition-all duration-200 border select-none
-                            ${key === "⌫"
-                                ? "bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20 hover:border-red-500/30 active:bg-red-500/30"
-                                : key === "-"
-                                ? "bg-amber-500/10 border-amber-500/20 text-amber-400 hover:bg-amber-500/20 hover:border-amber-500/30 active:bg-amber-500/30"
-                                : "bg-white/5 border-white/10 text-white hover:bg-white/10 hover:border-white/20 active:bg-white/15"
-                            }
-                            ${disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}
-                        `}
-                    >
-                        {key === "⌫" ? <Delete size={20} className="mx-auto" /> : key}
-                    </motion.button>
-                ))}
-            </div>
+    const rows = mode === "alpha" ? alphaRows : mode === "numeric" ? numericRows : symbolRows;
 
-            {/* Submit Button */}
-            <motion.button
-                whileTap={{ scale: 0.97 }}
-                whileHover={{ scale: 1.01 }}
-                onClick={onSubmit}
-                disabled={disabled || inputLength < 3}
-                className={`w-full h-14 rounded-xl font-bold text-base flex items-center justify-center gap-3 transition-all duration-300 border select-none
-                    ${inputLength >= 3 && !disabled
-                        ? "bg-gradient-to-r from-blue-600 to-indigo-600 border-blue-500/30 text-white shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 hover:from-blue-500 hover:to-indigo-500"
-                        : "bg-white/5 border-white/10 text-slate-500 cursor-not-allowed"
-                    }
-                `}
-            >
-                {disabled ? (
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                    <>
-                        <span>Submit Attendance</span>
-                        <ArrowRight size={18} />
-                    </>
-                )}
-            </motion.button>
+    return (
+        <div className="w-full flex flex-col gap-2 mx-auto pt-2">
+            {rows.map((row, rowIndex) => (
+                <div key={rowIndex} className="flex justify-center gap-1.5 md:gap-2">
+                    {row.map((key, keyIndex) => {
+                        let content = key;
+                        let widthClass = "flex-1 max-w-[40px] md:max-w-[48px]"; 
+                        let colorClass = "bg-white/5 border-white/10 text-white hover:bg-white/10 active:bg-white/20";
+
+                        if (key === "⌫") {
+                            content = <Delete size={20} className="mx-auto" />;
+                            widthClass = "flex-[1.5] max-w-[64px]";
+                            colorClass = "bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20";
+                        } else if (key === "⇧") {
+                            content = <ArrowUp size={20} className="mx-auto" />;
+                            widthClass = "flex-[1.5] max-w-[64px]";
+                            colorClass = isShift ? "bg-white text-slate-900" : "bg-slate-700/50 border-slate-600/50 text-slate-300";
+                        } else if (key === "?123" || key === "ABC" || key === "#+=") {
+                            widthClass = "flex-[1.5] max-w-[64px] text-xs md:text-sm font-semibold";
+                            colorClass = "bg-slate-700/50 border-slate-600/50 text-slate-300";
+                        } else if (key === "space") {
+                            content = "";
+                            widthClass = "flex-[4]"; // Spacebar width
+                            colorClass = "bg-white/5 border-white/10 hover:bg-white/10 active:bg-white/20";
+                        } else if (key === "Submit") {
+                            content = disabled ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : (
+                                inputLength >= 3 ? <span className="font-bold flex items-center justify-center gap-1">Enter<CornerDownLeft size={16}/></span> : "Enter"
+                            );
+                            widthClass = "flex-[2] max-w-[90px] text-sm";
+                            colorClass = inputLength >= 3 && !disabled
+                                ? "bg-gradient-to-r from-blue-600 to-indigo-600 border-blue-500/30 text-white shadow-[0_4px_0_rgba(37,99,235,0.4)] active:shadow-[0_0px_0_rgba(37,99,235,0.4)]"
+                                : "bg-slate-800/80 border-white/5 text-slate-500 cursor-not-allowed";
+                        } else {
+                            content = isShift && mode === "alpha" ? key.toUpperCase() : key;
+                            colorClass += " font-medium text-lg md:text-xl shadow-[0_4px_0_rgba(0,0,0,0.2)] active:shadow-[0_0px_0_rgba(0,0,0,0.2)]";
+                        }
+
+                        // Add shared button transition styles
+                        if (key !== "Submit" || disabled) {
+                           colorClass += " active:translate-y-1";
+                        } else if (!disabled) {
+                           colorClass += " active:translate-y-1";
+                        }
+
+                        return (
+                            <motion.button
+                                key={`${rowIndex}-${keyIndex}`}
+                                whileTap={disabled && key === "Submit" ? {} : { scale: 0.95 }}
+                                onClick={() => handleKey(key)}
+                                disabled={disabled && key !== "Submit"}
+                                className={`h-11 md:h-14 rounded-xl border flex items-center justify-center transition-all select-none ${widthClass} ${colorClass}`}
+                            >
+                                {content}
+                            </motion.button>
+                        );
+                    })}
+                </div>
+            ))}
         </div>
     );
 };
@@ -324,7 +376,7 @@ export default function PublicAttendance() {
                 </motion.div>
 
                 {/* Unified Attendance Card */}
-                <GlassCard className="max-w-md w-full mx-auto relative group">
+                <GlassCard className="max-w-2xl w-full mx-auto relative group">
                     {/* Decorative Glow Lines */}
                     <div className="absolute inset-x-0 -top-px h-px bg-gradient-to-r from-transparent via-blue-500/50 to-transparent" />
                     <div className="absolute inset-x-0 -bottom-px h-px bg-gradient-to-r from-transparent via-blue-500/50 to-transparent" />
@@ -447,15 +499,15 @@ export default function PublicAttendance() {
                                     </div>
                                 </div>
 
-                                {/* --- Numpad Divider --- */}
+                                {/* --- Keyboard Divider --- */}
                                 <div className="flex items-center gap-4 mb-5">
                                     <div className="flex-1 h-px bg-gradient-to-r from-transparent to-white/10" />
-                                    <span className="text-slate-600 text-[10px] font-bold uppercase tracking-[0.2em]">On-Screen Numpad</span>
+                                    <span className="text-slate-600 text-[10px] font-bold uppercase tracking-[0.2em]">Virtual Keyboard</span>
                                     <div className="flex-1 h-px bg-gradient-to-l from-transparent to-white/10" />
                                 </div>
 
-                                {/* --- Numpad --- */}
-                                <Numpad
+                                {/* --- Virtual Keyboard --- */}
+                                <VirtualKeyboard
                                     onInput={handleNumpadInput}
                                     onBackspace={handleNumpadBackspace}
                                     onSubmit={handleManualSubmit}

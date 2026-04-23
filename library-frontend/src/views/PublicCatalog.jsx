@@ -30,8 +30,7 @@ export default function PublicCatalog() {
 
     // Pagination State
     const [page, setPage] = useState(1);
-    const [hasMore, setHasMore] = useState(true);
-    const [loadingMore, setLoadingMore] = useState(false);
+    const [lastPage, setLastPage] = useState(1);
     const [showScrollTop, setShowScrollTop] = useState(false);
 
     useEffect(() => {
@@ -70,25 +69,12 @@ export default function PublicCatalog() {
             });
     }, []);
 
-    // Reset pagination when search or category changes
-    useEffect(() => {
-        setPage(1);
-        setHasMore(true);
-        setBooks([]); // Clear current books to show loading state or fresh results
-
-        const delayDebounceFn = setTimeout(() => {
-            fetchBooks(1, true);
-        }, 500);
-        return () => clearTimeout(delayDebounceFn);
-    }, [searchTerm, selectedCategory]);
-
-    const fetchBooks = (pageToFetch = 1, isFresh = false) => {
-        if (isFresh) setLoading(true);
-        else setLoadingMore(true);
+    const fetchBooks = (pageToFetch = 1) => {
+        setLoading(true);
 
         const params = {
             page: pageToFetch,
-            limit: 12
+            limit: 30
         };
 
         if (selectedCategory !== "All") {
@@ -101,39 +87,31 @@ export default function PublicCatalog() {
 
         axiosClient.get('/public/books', { params })
             .then(({ data }) => {
-                const newBooks = data.data || [];
-                const meta = data; // Laravel pagination object usually has current_page, last_page, etc. at root or in meta
-
-                if (isFresh) {
-                    setBooks(newBooks);
-                } else {
-                    setBooks(prev => [...prev, ...newBooks]);
-                }
-
-                // Check if we have more pages
-                // Assuming standard Laravel pagination response structure: data, current_page, last_page
-                if (data.current_page >= data.last_page) {
-                    setHasMore(false);
-                } else {
-                    setHasMore(true);
-                }
-
+                setBooks(data.data || []);
+                setLastPage(data.last_page || 1);
                 setLoading(false);
-                setLoadingMore(false);
             })
             .catch(err => {
                 console.error(err);
                 setLoading(false);
-                setLoadingMore(false);
             });
     };
 
-    const loadMore = () => {
-        if (!loadingMore && hasMore) {
-            const nextPage = page + 1;
-            setPage(nextPage);
-            fetchBooks(nextPage, false);
-        }
+    useEffect(() => {
+        const delayDebounceFn = setTimeout(() => {
+            fetchBooks(page);
+        }, 500);
+        return () => clearTimeout(delayDebounceFn);
+    }, [searchTerm, selectedCategory, page]);
+
+    const handleSearchChange = (val) => {
+        setSearchTerm(val);
+        setPage(1);
+    };
+
+    const handleCategoryChange = (cat) => {
+        setSelectedCategory(cat);
+        setPage(1);
     };
 
     const handleLocate = (book) => {
@@ -210,7 +188,7 @@ export default function PublicCatalog() {
                             <input
                                 type="text"
                                 value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
+                                onChange={(e) => handleSearchChange(e.target.value)}
                                 onFocus={() => setIsSearchFocused(true)}
                                 onBlur={() => setIsSearchFocused(false)}
                                 placeholder="Search by title, author, or ISBN..."
@@ -222,7 +200,7 @@ export default function PublicCatalog() {
                                     initial={{ opacity: 0, scale: 0.8 }}
                                     animate={{ opacity: 1, scale: 1 }}
                                     exit={{ opacity: 0, scale: 0.8 }}
-                                    onClick={() => setSearchTerm('')}
+                                    onClick={() => handleSearchChange('')}
                                     className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-all"
                                 >
                                     <X size={16} />
@@ -257,7 +235,7 @@ export default function PublicCatalog() {
                                 initial={{ opacity: 0, scale: 0.9 }}
                                 animate={{ opacity: 1, scale: 1 }}
                                 transition={{ delay: 0.1 * index }}
-                                onClick={() => setSelectedCategory(cat.category)}
+                                onClick={() => handleCategoryChange(cat.category)}
                                 className={`group relative px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 whitespace-nowrap flex items-center gap-2 flex-shrink-0 ${selectedCategory === cat.category
                                     ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/25'
                                     : 'bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white border border-white/5 hover:border-white/10'
@@ -309,7 +287,7 @@ export default function PublicCatalog() {
 
                 {/* BOOKS GRID */}
                 <div className="min-h-[400px]">
-                    {loading ? (
+                    {loading && books.length === 0 ? (
                         <motion.div
                             key="loading"
                             initial={{ opacity: 0 }}
@@ -325,7 +303,7 @@ export default function PublicCatalog() {
                             <p className="text-slate-500 mt-6 font-medium">Searching catalog...</p>
                         </motion.div>
                     ) : books.length > 0 ? (
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-5">
+                        <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-5 transition-opacity duration-300 ${loading ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
                             {books.map((book, i) => (
                                 <motion.div
                                     key={book.id}
@@ -369,7 +347,7 @@ export default function PublicCatalog() {
                             </p>
                             {searchTerm && (
                                 <button
-                                    onClick={() => setSearchTerm('')}
+                                    onClick={() => handleSearchChange('')}
                                     className="mt-6 px-6 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-white font-medium transition-all border border-white/10"
                                 >
                                     Clear Search
@@ -378,30 +356,30 @@ export default function PublicCatalog() {
                         </motion.div>
                     )}
 
-                    {/* LOAD MORE BUTTON */}
-                    {hasMore && books.length > 0 && !loading && (
+                    {/* PAGINATION */}
+                    {lastPage > 1 && books.length > 0 && (
                         <div className="flex justify-center mt-12 mb-8">
-                            <button
-                                onClick={loadMore}
-                                disabled={loadingMore}
-                                className="group relative px-8 py-3 rounded-2xl font-bold text-white transition-all duration-300 hover:scale-105 active:scale-95 disabled:opacity-70 disabled:hover:scale-100 overflow-hidden"
-                            >
-                                <div className="absolute inset-0 bg-gradient-to-r from-blue-600 via-purple-600 to-blue-600 bg-[length:200%_auto] animate-gradient" />
-                                <div className="absolute inset-[1px] rounded-2xl bg-slate-900 group-hover:bg-slate-900/80 transition-colors" />
-                                <span className="relative flex items-center gap-2">
-                                    {loadingMore ? (
-                                        <>
-                                            <Loader2 size={18} className="animate-spin" />
-                                            Loading...
-                                        </>
-                                    ) : (
-                                        <>
-                                            Load More Books
-                                            <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform" />
-                                        </>
-                                    )}
-                                </span>
-                            </button>
+                            <div className="flex items-center gap-2 p-2 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-md">
+                                <button
+                                    onClick={() => { setPage(Math.max(1, page - 1)); scrollToTop(); }}
+                                    disabled={page === 1 || loading}
+                                    className="px-4 py-2 rounded-xl text-sm font-bold text-white hover:bg-white/10 disabled:opacity-50 disabled:hover:bg-transparent transition-all"
+                                >
+                                    Previous
+                                </button>
+                                
+                                <div className="flex items-center gap-1 px-4 text-slate-400 font-medium">
+                                    Page <span className="text-white font-bold">{page}</span> of <span className="text-white font-bold">{lastPage}</span>
+                                </div>
+
+                                <button
+                                    onClick={() => { setPage(Math.min(lastPage, page + 1)); scrollToTop(); }}
+                                    disabled={page === lastPage || loading}
+                                    className="px-4 py-2 rounded-xl text-sm font-bold text-white hover:bg-white/10 disabled:opacity-50 disabled:hover:bg-transparent transition-all"
+                                >
+                                    Next
+                                </button>
+                            </div>
                         </div>
                     )}
                 </div>

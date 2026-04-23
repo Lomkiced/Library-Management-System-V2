@@ -89,6 +89,124 @@ const getCollegeShortName = (college) => {
   return map[college] || college;
 };
 
+// ─── CollegeCard (module-level for stable identity) ────────────────────────
+function CollegeCard({ college, totalBooks, availableTitles, categoryCount, index = 0, onCollegeClick }) {
+  const colors = getCollegeColors(college);
+  const shortName = getCollegeShortName(college);
+  return (
+    <motion.button
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ type: "spring", stiffness: 300, damping: 24, delay: index * 0.05 }}
+      onClick={() => onCollegeClick(college)}
+      className={`group relative overflow-hidden rounded-[2rem] p-7 text-left shadow-sm hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 border border-white/40 dark:border-slate-700/50 backdrop-blur-md ${colors.bg} dark:bg-slate-800/80`}
+    >
+      <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${colors.gradient} opacity-20 dark:opacity-30 rounded-full blur-3xl -translate-y-8 translate-x-8 group-hover:scale-150 transition-transform duration-700 ease-out`} />
+      <div className="relative z-10">
+        <div className="flex items-center justify-between mb-5">
+          <div className={`p-3.5 rounded-2xl bg-white/50 dark:bg-slate-700/50 backdrop-blur-md shadow-sm border border-white/50 dark:border-slate-600/50`}>
+            <GraduationCap size={26} className={colors.icon} />
+          </div>
+          <div className="opacity-0 group-hover:opacity-100 transform translate-x-4 group-hover:translate-x-0 transition-all duration-300">
+            <ChevronRight size={24} className={colors.icon} />
+          </div>
+        </div>
+        <h3 className={`text-xl font-bold text-gray-900 dark:text-white mb-1.5 truncate`} title={college}>{shortName}</h3>
+        <p className="text-sm text-gray-500 dark:text-slate-400 mb-6 truncate font-medium">{college}</p>
+        <div className="space-y-2">
+          <div className="flex items-end gap-2">
+            <p className="text-4xl font-black text-gray-900 dark:text-white tracking-tight">{totalBooks}</p>
+            <p className="text-sm font-semibold text-gray-500 dark:text-slate-400 mb-1">books</p>
+          </div>
+          <div className="flex items-center justify-between pt-4 border-t border-gray-200/50 dark:border-slate-700/50">
+            <p className="text-sm font-medium text-gray-600 dark:text-slate-300">
+              <span className={`font-bold ${colors.text}`}>{availableTitles}</span> available
+            </p>
+            <span className={`text-xs px-2.5 py-1 rounded-full ${colors.badge} font-bold shadow-sm backdrop-blur-sm bg-white/50 dark:bg-slate-800/50`}>
+              {categoryCount} {categoryCount === 1 ? "Category" : "Categories"}
+            </span>
+          </div>
+        </div>
+      </div>
+    </motion.button>
+  );
+}
+
+// ─── CategoryCard (module-level for stable identity) ────────────────────────
+function CategoryCard({ category, totalBooks, availableTitles, totalCopies, index = 0, onCategoryClick }) {
+  const colors = getCategoryColors(category);
+  return (
+    <motion.button
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ type: "spring", stiffness: 300, damping: 24, delay: index * 0.05 }}
+      onClick={() => onCategoryClick(category)}
+      className={`group relative overflow-hidden rounded-[2rem] p-7 text-left shadow-sm hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 border border-white/40 dark:border-slate-700/50 backdrop-blur-md ${colors.bg} dark:bg-slate-800/80`}
+    >
+      <div className={`absolute -bottom-8 -right-8 w-40 h-40 bg-gradient-to-tl ${colors.gradient} opacity-20 dark:opacity-30 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-700 ease-out`} />
+      <div className="relative z-10">
+        <div className="flex items-center justify-between mb-5">
+          <div className={`p-3.5 rounded-2xl bg-white/50 dark:bg-slate-700/50 backdrop-blur-md shadow-sm border border-white/50 dark:border-slate-600/50`}>
+            <FolderOpen size={26} className={colors.icon} />
+          </div>
+          <div className="opacity-0 group-hover:opacity-100 transform translate-x-4 group-hover:translate-x-0 transition-all duration-300">
+            <ChevronRight size={24} className={colors.icon} />
+          </div>
+        </div>
+        <h3 className={`text-xl font-bold text-gray-900 dark:text-white mb-6 truncate`}>{category}</h3>
+        <div className="space-y-2">
+          <div className="flex items-end gap-2">
+            <p className="text-4xl font-black text-gray-900 dark:text-white tracking-tight">{totalBooks}</p>
+            <p className="text-sm font-semibold text-gray-500 dark:text-slate-400 mb-1">books</p>
+          </div>
+          <div className="pt-4 border-t border-gray-200/50 dark:border-slate-700/50 flex flex-col gap-1">
+            <p className="text-sm font-medium text-gray-600 dark:text-slate-300 flex justify-between">
+              <span>Unique Titles</span>
+              <span className={`font-bold ${colors.text}`}>{availableTitles}</span>
+            </p>
+            <p className="text-sm font-medium text-gray-600 dark:text-slate-300 flex justify-between">
+              <span>Total Copies</span>
+              <span className={`font-bold ${colors.text}`}>{totalCopies}</span>
+            </p>
+          </div>
+        </div>
+      </div>
+    </motion.button>
+  );
+}
+
+// ─── PaginationControls (module-level for stable identity) ───────────────────
+function PaginationControls({ currentPage, totalPages, totalBooks, perPage, onPageChange }) {
+  const pages = [];
+  const maxVisible = 5;
+  let start = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+  let end = Math.min(totalPages, start + maxVisible - 1);
+  if (end - start < maxVisible - 1) {
+    start = Math.max(1, end - maxVisible + 1);
+  }
+  for (let i = start; i <= end; i++) { pages.push(i); }
+  return (
+    <div className="flex items-center justify-between mt-6 pt-6 border-t border-gray-100 dark:border-slate-700">
+      <p className="text-sm text-gray-500 dark:text-slate-400">
+        Showing {((currentPage - 1) * perPage) + 1} - {Math.min(currentPage * perPage, totalBooks)} of {totalBooks} books
+      </p>
+      <div className="flex items-center gap-1">
+        <button onClick={() => onPageChange(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition">
+          <ChevronLeft size={18} className="text-gray-600 dark:text-slate-300" />
+        </button>
+        {start > 1 && (<><button onClick={() => onPageChange(1)} className="px-3 py-1 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-sm font-medium text-gray-600 dark:text-slate-300">1</button>{start > 2 && <span className="px-2 text-gray-400">...</span>}</>)}
+        {pages.map(page => (
+          <button key={page} onClick={() => onPageChange(page)} className={`px-3 py-1 rounded-lg text-sm font-medium transition ${page === currentPage ? "bg-primary-600 text-white" : "hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-600 dark:text-slate-300"}`}>{page}</button>
+        ))}
+        {end < totalPages && (<>{end < totalPages - 1 && <span className="px-2 text-gray-400">...</span>}<button onClick={() => onPageChange(totalPages)} className="px-3 py-1 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-sm font-medium text-gray-600 dark:text-slate-300">{totalPages}</button></>)}
+        <button onClick={() => onPageChange(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition">
+          <ChevronRight size={18} className="text-gray-600 dark:text-slate-300" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function Books({ pendingBarcode = "", onClearPendingBarcode }) {
   const toast = useToast();
 
@@ -103,7 +221,7 @@ export default function Books({ pendingBarcode = "", onClearPendingBarcode }) {
   const [colleges, setColleges] = useState([]);
   const [categories, setCategories] = useState([]);
   const [categoryBooks, setCategoryBooks] = useState([]);
-  const [loadingColleges, setLoadingColleges] = useState(false);
+  const [loadingColleges, setLoadingColleges] = useState(true);
   const [loadingCategories, setLoadingCategories] = useState(false);
   const [loadingBooks, setLoadingBooks] = useState(false);
 
@@ -215,6 +333,7 @@ export default function Books({ pendingBarcode = "", onClearPendingBarcode }) {
   const handleCollegeClick = (college) => {
     setSelectedCollege(college);
     setSelectedCategory(null);
+    setLoadingCategories(true);
   };
 
   // Handle category card click (Level 2 → Level 3)
@@ -223,6 +342,7 @@ export default function Books({ pendingBarcode = "", onClearPendingBarcode }) {
     setSearchTerm("");
     setDebouncedSearch("");
     setCurrentPage(1);
+    setLoadingBooks(true);
   };
 
   // Handle back to categories (Level 3 → Level 2)
@@ -251,6 +371,7 @@ export default function Books({ pendingBarcode = "", onClearPendingBarcode }) {
     setSearchTerm("");
     setDebouncedSearch("");
     setCurrentPage(1);
+    setLoadingColleges(true);
   };
 
   // Handle back button click — context-aware
@@ -347,159 +468,7 @@ export default function Books({ pendingBarcode = "", onClearPendingBarcode }) {
     };
   };
 
-  // Pagination controls
-  const PaginationControls = () => {
-    const pages = [];
-    const maxVisible = 5;
-    let start = Math.max(1, currentPage - Math.floor(maxVisible / 2));
-    let end = Math.min(totalPages, start + maxVisible - 1);
-    if (end - start < maxVisible - 1) {
-      start = Math.max(1, end - maxVisible + 1);
-    }
 
-    for (let i = start; i <= end; i++) {
-      pages.push(i);
-    }
-
-    return (
-      <div className="flex items-center justify-between mt-6 pt-6 border-t border-gray-100 dark:border-slate-700">
-        <p className="text-sm text-gray-500 dark:text-slate-400">
-          Showing {((currentPage - 1) * perPage) + 1} - {Math.min(currentPage * perPage, totalBooks)} of {totalBooks} books
-        </p>
-        <div className="flex items-center gap-1">
-          <button
-            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-            disabled={currentPage === 1}
-            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
-          >
-            <ChevronLeft size={18} className="text-gray-600 dark:text-slate-300" />
-          </button>
-          {start > 1 && (
-            <>
-              <button onClick={() => setCurrentPage(1)} className="px-3 py-1 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-sm font-medium text-gray-600 dark:text-slate-300">1</button>
-              {start > 2 && <span className="px-2 text-gray-400">...</span>}
-            </>
-          )}
-          {pages.map(page => (
-            <button
-              key={page}
-              onClick={() => setCurrentPage(page)}
-              className={`px-3 py-1 rounded-lg text-sm font-medium transition ${page === currentPage
-                ? "bg-primary-600 text-white"
-                : "hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-600 dark:text-slate-300"
-                }`}
-            >
-              {page}
-            </button>
-          ))}
-          {end < totalPages && (
-            <>
-              {end < totalPages - 1 && <span className="px-2 text-gray-400">...</span>}
-              <button onClick={() => setCurrentPage(totalPages)} className="px-3 py-1 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-sm font-medium text-gray-600 dark:text-slate-300">{totalPages}</button>
-            </>
-          )}
-          <button
-            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-            disabled={currentPage === totalPages}
-            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
-          >
-            <ChevronRight size={18} className="text-gray-600 dark:text-slate-300" />
-          </button>
-        </div>
-      </div>
-    );
-  };
-
-  // College Card Component (Level 1)
-  const CollegeCard = ({ college, totalBooks, availableTitles, categoryCount }) => {
-    const colors = getCollegeColors(college);
-    const shortName = getCollegeShortName(college);
-    return (
-      <motion.button
-        variants={itemVariants}
-        whileHover={{ scale: 1.02 }}
-        whileTap={{ scale: 0.98 }}
-        onClick={() => handleCollegeClick(college)}
-        className={`group relative overflow-hidden rounded-[2rem] p-7 text-left shadow-sm hover:shadow-2xl transition-shadow border border-white/40 dark:border-slate-700/50 backdrop-blur-md ${colors.bg} dark:bg-slate-800/80`}
-      >
-        {/* Background gradient accent */}
-        <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${colors.gradient} opacity-20 dark:opacity-30 rounded-full blur-3xl -translate-y-8 translate-x-8 group-hover:scale-150 transition-transform duration-700 ease-out`} />
-
-        <div className="relative z-10">
-          <div className="flex items-center justify-between mb-5">
-            <div className={`p-3.5 rounded-2xl bg-white/50 dark:bg-slate-700/50 backdrop-blur-md shadow-sm border border-white/50 dark:border-slate-600/50`}>
-              <GraduationCap size={26} className={colors.icon} />
-            </div>
-            <div className="opacity-0 group-hover:opacity-100 transform translate-x-4 group-hover:translate-x-0 transition-all duration-300">
-              <ChevronRight size={24} className={colors.icon} />
-            </div>
-          </div>
-          <h3 className={`text-xl font-bold text-gray-900 dark:text-white mb-1.5 truncate`} title={college}>{shortName}</h3>
-          <p className="text-sm text-gray-500 dark:text-slate-400 mb-6 truncate font-medium">{college}</p>
-          <div className="space-y-2">
-            <div className="flex items-end gap-2">
-              <p className="text-4xl font-black text-gray-900 dark:text-white tracking-tight">{totalBooks}</p>
-              <p className="text-sm font-semibold text-gray-500 dark:text-slate-400 mb-1">books</p>
-            </div>
-            <div className="flex items-center justify-between pt-4 border-t border-gray-200/50 dark:border-slate-700/50">
-              <p className="text-sm font-medium text-gray-600 dark:text-slate-300">
-                <span className={`font-bold ${colors.text}`}>{availableTitles}</span> available
-              </p>
-              <span className={`text-xs px-2.5 py-1 rounded-full ${colors.badge} font-bold shadow-sm backdrop-blur-sm bg-white/50 dark:bg-slate-800/50`}>
-                {categoryCount} {categoryCount === 1 ? "Category" : "Categories"}
-              </span>
-            </div>
-          </div>
-        </div>
-      </motion.button>
-    );
-  };
-
-  // Category Card Component (Level 2)
-  const CategoryCard = ({ category, totalBooks, availableTitles, totalCopies, availableCopies }) => {
-    const colors = getCategoryColors(category);
-    return (
-      <motion.button
-        variants={itemVariants}
-        whileHover={{ scale: 1.02 }}
-        whileTap={{ scale: 0.98 }}
-        onClick={() => handleCategoryClick(category)}
-        className={`group relative overflow-hidden rounded-[2rem] p-7 text-left shadow-sm hover:shadow-2xl transition-shadow border border-white/40 dark:border-slate-700/50 backdrop-blur-md ${colors.bg} dark:bg-slate-800/80`}
-      >
-        {/* Background gradient accent */}
-        <div className={`absolute -bottom-8 -right-8 w-40 h-40 bg-gradient-to-tl ${colors.gradient} opacity-20 dark:opacity-30 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-700 ease-out`} />
-
-        <div className="relative z-10">
-          <div className="flex items-center justify-between mb-5">
-             <div className={`p-3.5 rounded-2xl bg-white/50 dark:bg-slate-700/50 backdrop-blur-md shadow-sm border border-white/50 dark:border-slate-600/50`}>
-              <FolderOpen size={26} className={colors.icon} />
-            </div>
-            <div className="opacity-0 group-hover:opacity-100 transform translate-x-4 group-hover:translate-x-0 transition-all duration-300">
-              <ChevronRight size={24} className={colors.icon} />
-            </div>
-          </div>
-          <h3 className={`text-xl font-bold text-gray-900 dark:text-white mb-6 truncate`}>{category}</h3>
-          
-          <div className="space-y-2">
-            <div className="flex items-end gap-2">
-              <p className="text-4xl font-black text-gray-900 dark:text-white tracking-tight">{totalBooks}</p>
-              <p className="text-sm font-semibold text-gray-500 dark:text-slate-400 mb-1">books</p>
-            </div>
-            <div className="pt-4 border-t border-gray-200/50 dark:border-slate-700/50 flex flex-col gap-1">
-               <p className="text-sm font-medium text-gray-600 dark:text-slate-300 flex justify-between">
-                <span>Unique Titles</span>
-                <span className={`font-bold ${colors.text}`}>{availableTitles}</span>
-              </p>
-               <p className="text-sm font-medium text-gray-600 dark:text-slate-300 flex justify-between">
-                <span>Total Copies</span>
-                <span className={`font-bold ${colors.text}`}>{totalCopies}</span>
-              </p>
-            </div>
-          </div>
-        </div>
-      </motion.button>
-    );
-  };
 
   // Determine current level
   const currentLevel = selectedCategory ? 3 : selectedCollege ? 2 : 1;
@@ -633,14 +602,16 @@ export default function Books({ pendingBarcode = "", onClearPendingBarcode }) {
         </motion.div>
       )}
 
-      {/* LEVEL 1: COLLEGE VIEW OR YEAR VIEW */}
-      {currentLevel === 1 && (
-        <motion.div 
-          variants={containerVariants}
-          initial="hidden"
-          animate="show"
-          className="relative z-10 space-y-6"
-        >
+      <AnimatePresence mode="wait">
+        {/* LEVEL 1: COLLEGE VIEW OR YEAR VIEW */}
+        {currentLevel === 1 && (
+          <motion.div 
+            key="level1"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20, transition: { duration: 0.2 } }}
+            className="relative z-10 space-y-6"
+          >
           {selectedYear && (
             <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="bg-gradient-to-tr from-slate-900 via-slate-800 to-slate-900 rounded-[2rem] p-8 text-white shadow-xl relative overflow-hidden flex items-center gap-6 border border-slate-700">
@@ -673,22 +644,24 @@ export default function Books({ pendingBarcode = "", onClearPendingBarcode }) {
               <p className="font-medium text-lg text-slate-600 dark:text-slate-400">Loading college departments...</p>
             </div>
           ) : colleges.length === 0 ? (
-            <motion.div variants={itemVariants} className="bg-white/50 dark:bg-slate-800/50 backdrop-blur-md rounded-[2rem] shadow-sm p-20 text-center border border-white/40 dark:border-slate-700/50">
+            <div className="bg-white/50 dark:bg-slate-800/50 backdrop-blur-md rounded-[2rem] shadow-sm p-20 text-center border border-white/40 dark:border-slate-700/50">
               <div className="w-24 h-24 mx-auto bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-6 shadow-inner">
                 <Building2 size={40} strokeWidth={1.5} className="text-slate-400 dark:text-slate-500" />
               </div>
               <p className="text-2xl font-bold text-slate-800 dark:text-white mb-2">No college departments found</p>
               <p className="text-slate-500 dark:text-slate-400">Add new books with a college assigned using the button above</p>
-            </motion.div>
+            </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6">
-              {colleges.map((col) => (
+              {colleges.map((col, index) => (
                 <CollegeCard
                   key={col.college}
                   college={col.college}
                   totalBooks={col.total_books}
                   availableTitles={col.available_titles}
                   categoryCount={col.category_count}
+                  index={index}
+                  onCollegeClick={handleCollegeClick}
                 />
               ))}
             </div>
@@ -696,9 +669,15 @@ export default function Books({ pendingBarcode = "", onClearPendingBarcode }) {
         </motion.div>
       )}
 
-      {/* LEVEL 2: CATEGORY VIEW (within selected college) */}
-      {currentLevel === 2 && (
-        <>
+        {/* LEVEL 2: CATEGORY VIEW (within selected college) */}
+        {currentLevel === 2 && (
+          <motion.div 
+            key="level2"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20, transition: { duration: 0.2 } }}
+            className="relative z-10"
+          >
           {loadingCategories ? (
             <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-12 text-center text-gray-400 dark:text-slate-500 border border-gray-100 dark:border-slate-700">
               <Loader2 className="animate-spin h-10 w-10 mx-auto mb-4 text-primary-600" />
@@ -712,7 +691,7 @@ export default function Books({ pendingBarcode = "", onClearPendingBarcode }) {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-              {categories.map((cat) => (
+              {categories.map((cat, index) => (
                 <CategoryCard
                   key={cat.category}
                   category={cat.category}
@@ -720,20 +699,24 @@ export default function Books({ pendingBarcode = "", onClearPendingBarcode }) {
                   availableTitles={cat.available_titles}
                   totalCopies={cat.total_copies}
                   availableCopies={cat.available_copies}
+                  index={index}
+                  onCategoryClick={handleCategoryClick}
                 />
               ))}
             </div>
           )}
-        </>
-      )}
+          </motion.div>
+        )}
 
-      {/* LEVEL 3: BOOK LIST VIEW */}
-      {currentLevel === 3 && (
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="relative z-10 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-[2rem] shadow-lg border border-white/40 dark:border-slate-700/50 overflow-hidden"
-        >
+        {/* LEVEL 3: BOOK LIST VIEW */}
+        {currentLevel === 3 && (
+          <motion.div 
+            key="level3"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20, transition: { duration: 0.2 } }}
+            className="relative z-10 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-[2rem] shadow-lg border border-white/40 dark:border-slate-700/50 overflow-hidden"
+          >
           {/* Search Bar */}
           <div className="p-6 border-b border-white/50 dark:border-slate-700/50 bg-white/40 dark:bg-slate-800/40">
             <div className="relative max-w-lg">
@@ -749,108 +732,117 @@ export default function Books({ pendingBarcode = "", onClearPendingBarcode }) {
           </div>
 
           {/* Book Table */}
-          {loadingBooks ? (
-            <div className="p-20 text-center">
-              <Loader2 className="animate-spin h-10 w-10 mx-auto mb-6 text-primary-500" />
-              <p className="font-medium text-lg text-slate-600 dark:text-slate-400">Loading catalog...</p>
-            </div>
-          ) : categoryBooks.length === 0 ? (
-            <div className="p-20 text-center text-slate-400 dark:text-slate-500">
-               <div className="w-24 h-24 mx-auto bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-6 shadow-inner">
-                 <Filter size={40} strokeWidth={1.5} />
-               </div>
-              <p className="text-2xl font-bold text-slate-800 dark:text-white mb-2">
-                {searchTerm ? `No matches found for "${searchTerm}"` : "No books in this category"}
-              </p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead className="bg-slate-100/50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 uppercase text-xs font-black tracking-widest border-b border-slate-200 dark:border-slate-700">
-                  <tr>
-                    <th className="p-5">Title Details</th>
-                    <th className="p-5">Author</th>
-                    <th className="p-5">Publisher</th>
-                    <th className="p-5">College</th>
-                    <th className="p-5">Call No.</th>
-                    <th className="p-5 text-center">Status</th>
-                    <th className="p-5 text-right w-40">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {categoryBooks.map((book) => {
-                    const badge = getStatusBadge(book);
-                    return (
-                      <tr key={book.id} className="hover:bg-primary-50/50 dark:hover:bg-primary-900/10 transition-colors group">
-                        <td className="p-5 min-w-[300px]">
-                          <div className="flex items-center gap-4">
-                            {book.image_path && !imgErrors[book.id] ? (
-                              <img
-                                src={getStorageUrl(book.image_path)}
-                                alt={book.title}
-                                className="w-12 h-16 object-cover rounded-lg shadow-md border border-slate-200 dark:border-slate-700"
-                                onError={() => setImgErrors(prev => ({ ...prev, [book.id]: true }))}
-                              />
-                            ) : (
-                              <div className="w-12 h-16 bg-slate-100 dark:bg-slate-800 rounded-lg flex items-center justify-center border border-slate-200 dark:border-slate-700 shadow-inner">
-                                <BookOpen size={20} className="text-slate-400 dark:text-slate-500" />
+          <AnimatePresence mode="wait">
+            {loadingBooks ? (
+              <motion.div key="loader" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="p-20 text-center">
+                <Loader2 className="animate-spin h-10 w-10 mx-auto mb-6 text-primary-500" />
+                <p className="font-medium text-lg text-slate-600 dark:text-slate-400">Loading catalog...</p>
+              </motion.div>
+            ) : categoryBooks.length === 0 ? (
+              <motion.div key="empty" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="p-20 text-center text-slate-400 dark:text-slate-500">
+                 <div className="w-24 h-24 mx-auto bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-6 shadow-inner">
+                   <Filter size={40} strokeWidth={1.5} />
+                 </div>
+                <p className="text-2xl font-bold text-slate-800 dark:text-white mb-2">
+                  {searchTerm ? `No matches found for "${searchTerm}"` : "No books in this category"}
+                </p>
+              </motion.div>
+            ) : (
+              <motion.div key="table" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead className="bg-slate-100/50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 uppercase text-xs font-black tracking-widest border-b border-slate-200 dark:border-slate-700">
+                    <tr>
+                      <th className="p-5">Title Details</th>
+                      <th className="p-5">Author</th>
+                      <th className="p-5">Publisher</th>
+                      <th className="p-5">College</th>
+                      <th className="p-5">Call No.</th>
+                      <th className="p-5 text-center">Status</th>
+                      <th className="p-5 text-right w-40">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {categoryBooks.map((book) => {
+                      const badge = getStatusBadge(book);
+                      return (
+                        <tr key={book.id} className="hover:bg-primary-50/50 dark:hover:bg-primary-900/10 transition-colors group">
+                          <td className="p-5 min-w-[300px]">
+                            <div className="flex items-center gap-4">
+                              {book.image_path && !imgErrors[book.id] ? (
+                                <img
+                                  src={getStorageUrl(book.image_path)}
+                                  alt={book.title}
+                                  className="w-12 h-16 object-cover rounded-lg shadow-md border border-slate-200 dark:border-slate-700"
+                                  onError={() => setImgErrors(prev => ({ ...prev, [book.id]: true }))}
+                                />
+                              ) : (
+                                <div className="w-12 h-16 bg-slate-100 dark:bg-slate-800 rounded-lg flex items-center justify-center border border-slate-200 dark:border-slate-700 shadow-inner">
+                                  <BookOpen size={20} className="text-slate-400 dark:text-slate-500" />
+                                </div>
+                              )}
+                              <div>
+                                <p className="font-bold text-slate-900 dark:text-white text-[15px] leading-tight mb-1">{book.title}</p>
+                                {book.subtitle && (
+                                  <p className="text-xs text-slate-500 dark:text-slate-400 italic mb-1">{book.subtitle}</p>
+                                )}
+                                {book.isbn && (
+                                  <p className="text-[11px] text-slate-400 dark:text-slate-500 font-mono font-medium drop-shadow-sm">{book.isbn}</p>
+                                )}
                               </div>
-                            )}
-                            <div>
-                              <p className="font-bold text-slate-900 dark:text-white text-[15px] leading-tight mb-1">{book.title}</p>
-                              {book.subtitle && (
-                                <p className="text-xs text-slate-500 dark:text-slate-400 italic mb-1">{book.subtitle}</p>
-                              )}
-                              {book.isbn && (
-                                <p className="text-[11px] text-slate-400 dark:text-slate-500 font-mono font-medium drop-shadow-sm">{book.isbn}</p>
-                              )}
                             </div>
-                          </div>
-                        </td>
-                        <td className="p-5 text-slate-700 dark:text-slate-300 font-medium">{book.author}</td>
-                        <td className="p-5 text-slate-600 dark:text-slate-400 text-sm">{book.publisher || '-'}</td>
-                        <td className="p-5 text-slate-600 dark:text-slate-400 text-sm font-medium">{getCollegeShortName(book.college) || '-'}</td>
-                        <td className="p-5 font-mono text-sm font-bold text-indigo-600 dark:text-indigo-400">{book.call_number || '-'}</td>
-                        <td className="p-5 text-center">
-                          <div className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border backdrop-blur-md shadow-sm text-xs font-bold leading-none ${badge.className}`}>
-                            {badge.icon}
-                            <span>{badge.text}</span>
-                          </div>
-                        </td>
-                        <td className="p-5 align-middle">
-                          <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button
-                              onClick={() => setSelectedBookForLabel(book)}
-                              className="text-xs bg-indigo-600 text-white p-2.5 rounded-xl hover:bg-indigo-700 transition shadow-sm hover:shadow-indigo-500/20"
-                              title="Print Label"
-                            >
-                              <Printer size={16} />
-                            </button>
-
-                            <button onClick={() => onEdit(book)} className="text-slate-500 bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 hover:text-indigo-600 dark:hover:text-indigo-400 p-2.5 rounded-xl transition shadow-sm" title="Edit">
-                              <Edit size={16} />
-                            </button>
-                            <button onClick={() => onDelete(book)} className="text-slate-500 bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 hover:text-rose-600 dark:hover:text-rose-400 p-2.5 rounded-xl transition shadow-sm" title="Delete">
-                              <Trash2 size={16} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
+                          </td>
+                          <td className="p-5 text-slate-700 dark:text-slate-300 font-medium">{book.author}</td>
+                          <td className="p-5 text-slate-600 dark:text-slate-400 text-sm">{book.publisher || '-'}</td>
+                          <td className="p-5 text-slate-600 dark:text-slate-400 text-sm font-medium">{getCollegeShortName(book.college) || '-'}</td>
+                          <td className="p-5 font-mono text-sm font-bold text-indigo-600 dark:text-indigo-400">{book.call_number || '-'}</td>
+                          <td className="p-5 text-center">
+                            <div className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border backdrop-blur-md shadow-sm text-xs font-bold leading-none ${badge.className}`}>
+                              {badge.icon}
+                              <span>{badge.text}</span>
+                            </div>
+                          </td>
+                          <td className="p-5 align-middle">
+                            <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                onClick={() => setSelectedBookForLabel(book)}
+                                className="text-xs bg-indigo-600 text-white p-2.5 rounded-xl hover:bg-indigo-700 transition shadow-sm hover:shadow-indigo-500/20"
+                                title="Print Label"
+                              >
+                                <Printer size={16} />
+                              </button>
+  
+                              <button onClick={() => onEdit(book)} className="text-slate-500 bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 hover:text-indigo-600 dark:hover:text-indigo-400 p-2.5 rounded-xl transition shadow-sm" title="Edit">
+                                <Edit size={16} />
+                              </button>
+                              <button onClick={() => onDelete(book)} className="text-slate-500 bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 hover:text-rose-600 dark:hover:text-rose-400 p-2.5 rounded-xl transition shadow-sm" title="Delete">
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Pagination */}
           {categoryBooks.length > 0 && totalPages > 1 && (
             <div className="px-8 pb-8">
-              <PaginationControls />
+              <PaginationControls
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalBooks={totalBooks}
+                perPage={perPage}
+                onPageChange={setCurrentPage}
+              />
             </div>
           )}
         </motion.div>
       )}
+      </AnimatePresence>
 
       {/* MODALS */}
       {showTitleForm && (

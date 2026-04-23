@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import axiosClient from "../axios-client";
-import { FileText, Users, DollarSign, Download, Calendar, FileBarChart, TrendingUp, PieChart as PieChartIcon, BarChart3, AlertCircle, ChevronRight, ChevronLeft, GraduationCap, ArrowLeft, Search, X, FileDown } from "lucide-react";
+import { FileText, Users, DollarSign, Download, Calendar, FileBarChart, TrendingUp, PieChart as PieChartIcon, BarChart3, AlertCircle, ChevronRight, ChevronLeft, GraduationCap, ArrowLeft, Search, X, FileDown, Medal, Award, BookOpen, Star, Activity } from "lucide-react";
 import { Document, Packer, Paragraph, Table, TableRow, TableCell, TextRun, ImageRun, WidthType, AlignmentType, BorderStyle, HeadingLevel, PageBreak, VerticalAlign } from "docx";
 import { saveAs } from "file-saver";
 import Swal from "sweetalert2";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell, LabelList } from "recharts";
+import TopStudentsPanel from "./TopStudentsPanel";
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
 
@@ -21,6 +22,7 @@ export default function Reports() {
     // Report Data State
     const [mostBorrowed, setMostBorrowed] = useState([]);
     const [topStudents, setTopStudents] = useState({ data: [], current_page: 1, last_page: 1, total: 0, per_page: 10 });
+    const [studentSummary, setStudentSummary] = useState({ total_active_readers: 0, total_books_circulated: 0, avg_books_per_student: 0, most_popular_category: 'N/A' });
     const [studentPage, setStudentPage] = useState(1);
     const [studentSearch, setStudentSearch] = useState(""); // NEW: Search state
     const [penalties, setPenalties] = useState({ monthly: [], summary: {} });
@@ -68,13 +70,14 @@ export default function Reports() {
         return { start_date: start, end_date: new Date().toISOString().split('T')[0] };
     };
 
-    // Fetch top students with pagination & search (independent)
+    // Fetch top students — all-time leaderboard, independent of date filter
     const fetchTopStudents = (page = 1, search = studentSearch) => {
-        const params = { ...getDateParams(), page, per_page: 10, search };
+        const params = { page, per_page: 10, search };
         axiosClient.get("/reports/top-students", { params })
             .then(({ data }) => {
                 setTopStudents(data);
                 setStudentPage(data.current_page);
+                if (data.summary) setStudentSummary(data.summary);
             })
             .catch(err => console.error('Failed to fetch top students:', err));
     };
@@ -100,16 +103,17 @@ export default function Reports() {
 
         Promise.all([
             axiosClient.get("/reports/most-borrowed", { params }),
-            axiosClient.get("/reports/top-students", { params: { ...params, page: 1, per_page: 10 } }),
+            axiosClient.get("/reports/top-students", { params: { page: 1, per_page: 10 } }),
             axiosClient.get("/reports/penalties", { params }),
             axiosClient.get("/reports/demographics", { params }),
-            axiosClient.get("/reports/statistics"), // Let backend determine correct academic year
+            axiosClient.get("/reports/statistics"),
             axiosClient.get("/reports/financial-current"),
             axiosClient.get("/reports/financial-history"),
         ])
             .then(([booksRes, studentsRes, penaltiesRes, demoRes, statsRes, financialCurrentRes, financialHistoryRes]) => {
                 setMostBorrowed(booksRes.data);
                 setTopStudents(studentsRes.data);
+                if (studentsRes.data.summary) setStudentSummary(studentsRes.data.summary);
                 setPenalties(penaltiesRes.data);
                 setDemographics(demoRes.data);
                 setStatistics(statsRes.data);
@@ -1352,176 +1356,21 @@ export default function Reports() {
 
                     {/* Top Students Section */}
                     {activeTab === "students" && (
-                        <div className="space-y-6">
-                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                                {/* CHART CARD */}
-                                <div className="lg:col-span-3 bg-white dark:bg-slate-800 rounded-3xl shadow-xl border border-gray-100 dark:border-slate-700 p-8">
-                                    <div className="flex justify-between items-center mb-8">
-                                        <div>
-                                            <h3 className="text-xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
-                                                <Users className="text-emerald-500" size={24} /> Top Readers
-                                            </h3>
-                                            <p className="text-gray-400 text-sm mt-1">Students with most borrowing activity</p>
-                                        </div>
-                                        <button onClick={() => exportCsv("students")} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg text-gray-500">
-                                            <Download size={20} />
-                                        </button>
-                                    </div>
-                                    <div className="h-[350px] w-full">
-                                        <ResponsiveContainer width="100%" height={350}>
-                                            <BarChart data={(topStudents.data || []).slice(0, 15)} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.5} />
-                                                <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => value.split(' ')[0]} />
-                                                <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
-                                                <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: '#f1f5f9', opacity: 0.4 }} />
-                                                <Bar dataKey="borrow_count" name="Books Read" fill="#10b981" radius={[4, 4, 0, 0]} barSize={40} />
-                                            </BarChart>
-                                        </ResponsiveContainer>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Student List Table */}
-                            <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-lg border border-gray-100 dark:border-slate-700 overflow-hidden">
-                                {/* Search Header */}
-                                <div className="p-6 border-b border-gray-100 dark:border-slate-700 flex flex-col sm:flex-row justify-between items-center gap-4">
-                                    <h4 className="font-bold text-gray-700 dark:text-white">
-                                        {studentSearch ? "Search Results" : "Top 3 Students"}
-                                    </h4>
-                                    <div className="relative w-full sm:w-72">
-                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                                        <input
-                                            type="text"
-                                            placeholder="Search student..."
-                                            value={studentSearch}
-                                            onChange={handleStudentSearch}
-                                            className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-700 border border-gray-200 dark:border-slate-600 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50 dark:text-white"
-                                        />
-                                        {studentSearch && (
-                                            <button
-                                                onClick={clearStudentSearch}
-                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-white"
-                                            >
-                                                <X size={16} />
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
-
-                                <table className="w-full text-left">
-                                    <thead className="bg-white dark:bg-slate-800 text-gray-400 dark:text-slate-500 text-xs font-bold uppercase tracking-wider border-b border-gray-100 dark:border-slate-700">
-                                        <tr>
-                                            <th className="p-6 font-medium">Rank</th>
-                                            <th className="p-6 font-medium">Student</th>
-                                            <th className="p-6 font-medium">Course/Year</th>
-                                            <th className="p-6 font-medium text-center">Active Loans</th>
-                                            <th className="p-6 font-medium text-right">Total Reads</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-100 dark:divide-slate-700/50">
-                                        {(topStudents.data || []).map((student, index) => (
-                                            <tr key={student.id + '_' + index} className={`hover:bg-gray-50 dark:hover:bg-slate-700/50 transition ${student.rank <= 3 ? 'bg-yellow-50/50 dark:bg-yellow-900/10' : ''}`}>
-                                                <td className="p-6">
-                                                    <div className={`w-8 h-8 flex items-center justify-center rounded-full font-bold text-sm ${student.rank === 1 ? 'bg-yellow-100 text-yellow-700' :
-                                                        student.rank === 2 ? 'bg-gray-100 text-gray-700' :
-                                                            student.rank === 3 ? 'bg-orange-100 text-orange-700' :
-                                                                'text-gray-500'
-                                                        }`}>
-                                                        #{student.rank}
-                                                    </div>
-                                                </td>
-                                                <td className="p-6">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-700 dark:text-emerald-400 font-bold overflow-hidden">
-                                                            {student.profile_picture ? (
-                                                                <img src={student.profile_picture} alt="Profile" className="w-full h-full object-cover" />
-                                                            ) : (
-                                                                student.name.charAt(0)
-                                                            )}
-                                                        </div>
-                                                        <div>
-                                                            <p className="font-bold text-gray-800 dark:text-white">{student.name}</p>
-                                                            <p className="text-xs text-gray-500 dark:text-slate-400 font-mono">{student.student_id}</p>
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                {/* NEW: Detailed Course info */}
-                                                <td className="p-6">
-                                                    <div>
-                                                        <p className="font-medium text-gray-700 dark:text-slate-300">{student.course}</p>
-                                                        <p className="text-xs text-gray-500 dark:text-slate-400">{student.year_level} - {student.section}</p>
-                                                    </div>
-                                                </td>
-                                                <td className="p-6 text-center">
-                                                    {student.active_loans > 0 ? (
-                                                        <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                                                            {student.active_loans} Active
-                                                        </span>
-                                                    ) : (
-                                                        <span className="text-gray-400 text-xs">-</span>
-                                                    )}
-                                                </td>
-                                                <td className="p-6 text-right">
-                                                    <span className="font-bold text-lg text-emerald-600 dark:text-emerald-400">{student.borrow_count}</span>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            {/* Pagination Controls - Only show if searching and results > 10 */}
-                            {studentSearch && topStudents.last_page > 1 && (
-                                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-4 bg-gray-50 dark:bg-slate-800/50 rounded-b-3xl border-t border-gray-100 dark:border-slate-700">
-                                    <p className="text-sm text-gray-500 dark:text-slate-400">
-                                        Showing <span className="font-bold text-gray-700 dark:text-white">{(topStudents.current_page - 1) * topStudents.per_page + 1}</span> to <span className="font-bold text-gray-700 dark:text-white">{Math.min(topStudents.current_page * topStudents.per_page, topStudents.total)}</span> of <span className="font-bold text-gray-700 dark:text-white">{topStudents.total}</span> students
-                                    </p>
-                                    <div className="flex items-center gap-2">
-                                        <button
-                                            onClick={() => fetchTopStudents(studentPage - 1)}
-                                            disabled={studentPage <= 1}
-                                            className="flex items-center gap-1 px-4 py-2 rounded-xl text-sm font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 text-gray-700 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-600 shadow-sm"
-                                        >
-                                            <ChevronLeft size={16} /> Previous
-                                        </button>
-                                        <div className="flex items-center gap-1">
-                                            {Array.from({ length: topStudents.last_page }, (_, i) => i + 1)
-                                                .filter(page => {
-                                                    if (topStudents.last_page <= 5) return true;
-                                                    if (page === 1 || page === topStudents.last_page) return true;
-                                                    return Math.abs(page - studentPage) <= 1;
-                                                })
-                                                .map((page, idx, arr) => (
-                                                    <span key={page} className="flex items-center gap-1">
-                                                        {idx > 0 && arr[idx - 1] !== page - 1 && (
-                                                            <span className="px-1 text-gray-400 text-xs">...</span>
-                                                        )}
-                                                        <button
-                                                            onClick={() => fetchTopStudents(page)}
-                                                            className={`w-9 h-9 rounded-lg text-sm font-bold transition-all ${page === studentPage
-                                                                ? "bg-gray-900 dark:bg-white text-white dark:text-gray-900 shadow-lg"
-                                                                : "bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-600"
-                                                                }`}
-                                                        >
-                                                            {page}
-                                                        </button>
-                                                    </span>
-                                                ))}
-                                        </div>
-                                        <button
-                                            onClick={() => fetchTopStudents(studentPage + 1)}
-                                            disabled={studentPage >= topStudents.last_page}
-                                            className="flex items-center gap-1 px-4 py-2 rounded-xl text-sm font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 text-gray-700 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-600 shadow-sm"
-                                        >
-                                            Next <ChevronRight size={16} />
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
+                        <TopStudentsPanel
+                            topStudents={topStudents}
+                            studentSummary={studentSummary}
+                            studentSearch={studentSearch}
+                            studentPage={studentPage}
+                            onSearch={handleStudentSearch}
+                            onClearSearch={clearStudentSearch}
+                            onPageChange={(p) => fetchTopStudents(p)}
+                            onExportCsv={() => exportCsv("students")}
+                        />
                     )}
 
-                    {/* NEW: Demographics Section */}
+
+
+                    {/* Demographics Section */}
                     {activeTab === "demographics" && (
                         <div className="space-y-6">
 

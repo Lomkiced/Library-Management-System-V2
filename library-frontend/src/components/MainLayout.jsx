@@ -80,6 +80,21 @@ export default function MainLayout({ children, activeTab, setActiveTab, onLogout
     const { isDark, toggleTheme } = useTheme();
     const { libraryName, libraryShortName } = useLibrarySettings();
 
+    // Determine initial section based on activeTab
+    const getInitialSection = (tab) => {
+        if (['dashboard', 'circulation', 'faculty-circulation'].includes(tab)) return 'workspace';
+        if (['books', 'students', 'faculty', 'user-management'].includes(tab)) return 'management';
+        if (['attendance-log', 'history', 'reports', 'department-analytics'].includes(tab)) return 'reports';
+        return 'workspace';
+    };
+
+    const [openSection, setOpenSection] = useState(() => getInitialSection(activeTab));
+
+    // Automatically open the section containing the active tab
+    useEffect(() => {
+        setOpenSection(getInitialSection(activeTab));
+    }, [activeTab]);
+
     // Persist collapsed state
     useEffect(() => {
         const savedState = localStorage.getItem('sidebar-collapsed');
@@ -126,6 +141,50 @@ export default function MainLayout({ children, activeTab, setActiveTab, onLogout
         </button>
     );
 
+    const NavGroup = ({ id, label, children }) => {
+        const isOpen = openSection === id;
+        
+        return (
+            <div className="space-y-0.5">
+                {!collapsed ? (
+                    <button 
+                        onClick={() => setOpenSection(isOpen ? null : id)}
+                        className="w-full flex items-center justify-between px-3 py-2 mb-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors group"
+                    >
+                        <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 group-hover:text-gray-600 dark:group-hover:text-gray-300 uppercase tracking-widest transition-colors">
+                            {label}
+                        </span>
+                        <motion.div
+                            initial={false}
+                            animate={{ rotate: isOpen ? 90 : 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="text-gray-400"
+                        >
+                            <ChevronRight size={14} />
+                        </motion.div>
+                    </button>
+                ) : (
+                    <div className="w-8 h-px bg-gray-200 dark:bg-gray-800 my-4 mx-auto" />
+                )}
+                
+                <AnimatePresence initial={false}>
+                    {(isOpen || collapsed) && (
+                        <motion.div
+                            key="content"
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.3, ease: "easeInOut" }}
+                            className="overflow-hidden space-y-0.5"
+                        >
+                            {children}
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </div>
+        );
+    };
+
     // Sidebar Content Component
     const SidebarContent = () => (
         <div className="flex flex-col h-full bg-white dark:bg-executive-800 border-r border-gray-200 dark:border-gray-800 relative z-20">
@@ -149,31 +208,25 @@ export default function MainLayout({ children, activeTab, setActiveTab, onLogout
 
             {/* Navigation Menu */}
             <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar py-4 px-3 space-y-6">
-                {/* Workspace Section */}
-                <div className="space-y-0.5">
-                    {!collapsed && <div className="px-3 mb-2 text-[10px] font-bold text-gray-400 dark:text-gray-600 uppercase tracking-widest">Workspace</div>}
+                <NavGroup id="workspace" label="Workspace">
                     <NavItem id="dashboard" label="Dashboard" icon={LayoutDashboard} />
                     <NavItem id="circulation" label="Student Circulation" icon={Repeat} />
                     <NavItem id="faculty-circulation" label="Faculty Circulation" icon={Repeat} />
-                </div>
+                </NavGroup>
 
-                {/* Management Section */}
-                <div className="space-y-0.5">
-                    {!collapsed && <div className="px-3 mb-2 text-[10px] font-bold text-gray-400 dark:text-gray-600 uppercase tracking-widest">Management</div>}
+                <NavGroup id="management" label="Management">
                     <NavItem id="books" label="Inventory" icon={BookOpen} />
                     <NavItem id="students" label="Students" icon={Users} />
                     <NavItem id="faculty" label="Faculty" icon={Building2} />
                     <NavItem id="user-management" label="Add User" icon={UserPlus} />
-                </div>
+                </NavGroup>
 
-                {/* Analytics Section */}
-                <div className="space-y-0.5">
-                    {!collapsed && <div className="px-3 mb-2 text-[10px] font-bold text-gray-400 dark:text-gray-600 uppercase tracking-widest">Reports</div>}
+                <NavGroup id="reports" label="Reports">
                     <NavItem id="attendance-log" label="Attendance Log" icon={ClipboardList} />
                     <NavItem id="history" label="Activity Logs" icon={HistoryIcon} />
                     <NavItem id="reports" label="Statistics" icon={FileBarChart} />
                     <NavItem id="department-analytics" label="Departments" icon={PieChart} />
-                </div>
+                </NavGroup>
             </div>
 
             {/* Footer Actions */}
